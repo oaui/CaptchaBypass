@@ -1,0 +1,18 @@
+[
+  {
+    "name": "cf_clearance",
+    "value": "2MMTCSOGnkT6Xb7e6diAmXvCX2OqCf0WadQAuvBsoIQ-1756488842-1.2.1.1-M.GhdrigZRiO5.Zw.9ecAOPQM9rNibexaMBialurJicAJGSmOsWFN8Dvr.xbK4xK4JycDuUUuAtHjGwtaqoA9gtS2hRy8S6a.0cKTwXWrWztbxkG6JEPir2MFdGTcxU5taAMSPFLAmdhRS0g3B_5ZImKtrC3xt676ShELuZJMIg1B.5vYXJyUx8A2N92xNXGeCOx3bY84vHJvI3WuU9CFQpB1D9ONjnNOG9K32QxTMo",
+    "domain": ".dopamine.clinic",
+    "path": "/",
+    "expires": 1788024842.290097,
+    "size": 310,
+    "httpOnly": true,
+    "secure": true,
+    "session": false,
+    "sameSite": "None",
+    "priority": "Medium",
+    "sameParty": false,
+    "sourceScheme": "Secure",
+    "partitionKey": "https://dopamine.clinic"
+  }
+]
