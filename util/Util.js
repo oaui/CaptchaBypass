@@ -271,18 +271,21 @@ export function suspiciousClickableSelector() {
  * Returns true if any frame contains a match.
  */
 async function hasUnknownCaptcha(page) {
+  const { titleLower, bodyLower } = await page.evaluate(() => ({
+    titleLower: (document.title || "").toLowerCase(),
+    bodyLower: (document.body?.innerText || "").toLowerCase(),
+  }));
   const selector = suspiciousClickableSelector();
 
-  const pageTitle = await page.title();
   if (
-    pageTitle.toLowerCase().includes("captcha") ||
-    pageTitle.toLowerCase().includes("challenge") ||
-    pageTitle.toLowerCase().includes("verification")
+    titleLower.includes("captcha") ||
+    titleLower.includes("challenge") ||
+    titleLower.includes("verification") ||
+    bodyLower.includes("checking") ||
+    bodyLower.includes("cdn")
   ) {
-    log("INFO", `Page title indicates captcha.`);
     return true;
   }
-
   for (const frame of page.frames()) {
     try {
       const found = await frame.evaluate(
@@ -304,10 +307,10 @@ export async function detectChallenges(page) {
       hasTurnstile:
         title.includes("just a moment") ||
         title.includes("checking") ||
-        body.includes("checking your browser") ||
+        body.includes("cloudflare") ||
+        body.includes("challenges.cloudflare.com") ||
         !!document.querySelector(".cf-turnstile") ||
         !!document.querySelector("#challenge-form") ||
-        !!document.querySelector(".captcha-box") ||
         !!document.querySelector(".zone-name-title") ||
         !!document.querySelector(".ray-id"),
       hasRecaptcha:

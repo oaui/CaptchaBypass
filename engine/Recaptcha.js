@@ -6,13 +6,7 @@ import {
   createCookieObject,
 } from "../util/Util.js";
 import { randnum } from "../util/Helpers.js";
-import OpenAI from "openai";
-import fs from "fs";
-import "dotenv/config";
-
-const client = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY, // 👈 match your .env
-});
+import { retrieveAiResponse } from "../util/Ai.js";
 
 export async function solveRecaptcha(page, browserId, browserData, proxy) {
   log("WARN", `Browser ${browserId}: reCaptcha detected`);
@@ -42,6 +36,7 @@ export async function solveRecaptcha(page, browserId, browserData, proxy) {
       ) {
         try {
           await addHumanLikeBehaviorInFrame(frame, browserId);
+          await new Promise((r) => setTimeout(r, randnum(2000, 4000)));
           await frame.click(".rc-anchor-content");
           log(
             "SUCCESS",
@@ -81,7 +76,7 @@ export async function solveRecaptcha(page, browserId, browserData, proxy) {
           }
           break;
         } catch (error) {
-          log("ERROR", `Fatal in main: Browser ${browserId} failed. ${error}`);
+          log("INFO", `Browser ${browserId} ${error}`);
         }
       }
     }
@@ -236,6 +231,27 @@ async function handle3x3Grid(
     let solved = false;
     while (!solved) {
       await new Promise((r) => setTimeout(r, randnum(5000, 10000)));
+      const x3Selector = ".rc-imageselect-table-33 td";
+      let x3selectorPresent = await recaptchaFrame.$$(x3Selector);
+
+      if (x3selectorPresent.length === 0) {
+        log("INFO", `Unable to find 3x3 grid, captcha change detected.`);
+        const altImagePath = `../files/captchas/4x4/recaptcha-checkbox-${browserId} - ${Date.now()}.png`;
+        await page.screenshot({ path: altImagePath });
+        const newCells = await recaptchaFrame.$$(`.rc-imageselect-table-44 td`);
+        log("INFO", newCells.length);
+        const newCaptcha = await handle3x3Grid(
+          page,
+          altImagePath,
+          newCells,
+          recaptchaFrame,
+          browserId
+        );
+        if (newCaptcha) {
+          return true;
+        }
+      }
+
       /**
        * Take new image
        */
@@ -295,32 +311,35 @@ async function handle4x4Grid(
   );
   let tablePresent = (await recaptchaFrame.$$("table")).length > 0;
   if (tablePresent) {
-    solveTries++;
     let tableStillPresent = true;
     let solved = false;
     while (!solved) {
+      solveTries++;
       await new Promise((r) => setTimeout(r, randnum(3000, 5000)));
       const x4Selector = ".rc-imageselect-table-44 td";
-      const x4selectorPresent = await recaptchaFrame.$$(x4Selector);
+      let x4selectorPresent = await recaptchaFrame.$$(x4Selector);
       if (solveTries >= 2) {
         /**
          * ? Special handling to solve alternative captcha, incase of failure for 4x4
          */
-        if (x4selectorPresent) {
-          continue;
-        }
-        const altImagePath = `../files/captchas/3x3/recaptcha-checkbox-${browserId} - ${Date.now()}.png`;
-        await page.screenshot({ path: altImagePath });
-        const newCells = await recaptchaFrame.$$(`.rc-imageselect-table-33 td`);
-        const newCaptcha = await handle3x3Grid(
-          page,
-          altImagePath,
-          newCells,
-          recaptchaFrame,
-          browserId
-        );
-        if (newCaptcha) {
-          return true;
+        if (x4selectorPresent.length === 0) {
+          log("INFO", `Captcha changed, switching to alternative solving`);
+          const altImagePath = `../files/captchas/3x3/recaptcha-checkbox-${browserId} - ${Date.now()}.png`;
+          await page.screenshot({ path: altImagePath });
+          const newCells = await recaptchaFrame.$$(
+            `.rc-imageselect-table-33 td`
+          );
+          log("INFO", newCells.length);
+          const newCaptcha = await handle3x3Grid(
+            page,
+            altImagePath,
+            newCells,
+            recaptchaFrame,
+            browserId
+          );
+          if (newCaptcha) {
+            return true;
+          }
         }
       }
       /**
@@ -403,32 +422,4 @@ async function handleResponse(response, cellsCount) {
     `parsed indices: ${JSON.stringify(indices)} (cells=${cellsCount})`
   );
   return indices;
-}
-
-async function retrieveAiResponse(imagePath, promptText) {
-  try {
-    const imageBuffer = fs.readFileSync(imagePath);
-    const base64Image = imageBuffer.toString("base64");
-
-    const response = await client.chat.completions.create({
-      model: "gpt-4.1",
-      messages: [
-        {
-          role: "user",
-          content: [
-            { type: "text", text: promptText },
-            {
-              type: "image_url",
-              image_url: { url: `data:image/png;base64,${base64Image}` },
-            },
-          ],
-        },
-      ],
-    });
-
-    return response.choices[0].message.content;
-  } catch (error) {
-    console.error("Error retrieving AI response:", error);
-    throw error;
-  }
 }

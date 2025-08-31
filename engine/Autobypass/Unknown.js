@@ -18,6 +18,7 @@ export async function autoBypass(page, browserId, proxy, browserData) {
       { timeout: 15000 }
     )
     .catch(() => null);
+
   /**
    * ? Check for more captcha types here later, for now it will only be hCaptcha and any unknown types
    */
@@ -93,6 +94,10 @@ export async function autoBypass(page, browserId, proxy, browserData) {
         customCookieName
       );
     } else {
+      log(
+        "INFO",
+        `Browser ${browserId}: No custom cookie specified, farming all cookies.`
+      );
       cookieObj = await createCookieObject(cookies, proxy.host, "*");
     }
 
