@@ -31,9 +31,6 @@ export async function solveHCaptcha(page, browserId, browserData) {
     }
   }
   /**
-   * TODO: Add solver logic using AI maybe
-   */
-  /**
    * ? This will always return true, as the hCaptcha is always present, if this was called.
    */
   return { success: true, browserData };
