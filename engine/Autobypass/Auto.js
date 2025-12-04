@@ -12,6 +12,10 @@ export async function autoSolver(page, browserData, browserId) {
 
   const frames = page.frames();
 
+  /**
+   * TODO: Implement something, that detects captcha types, such as BunnyNet, Vercel etc.
+   */
+
   for (const frame of frames) {
     try {
       // Only select <div> elements

@@ -53,10 +53,10 @@ const BROWSER_CONFIG = {
      * * Used in Captcha.js to set max concurrent workers for the Flooder running per browser
      */
     parseInt(
-      process.argv.find((arg) => arg.startsWith("-rps="))?.split("=")[1]
+      process.argv.find((arg) => arg.startsWith("--requests="))?.split("=")[1]
     ) ||
     parseInt(
-      process.argv.find((arg) => arg.startsWith("--requests="))?.split("=")[1]
+      process.argv.find((arg) => arg.startsWith("-rps="))?.split("=")[1]
     ) ||
     1,
   cpspp:
@@ -64,12 +64,12 @@ const BROWSER_CONFIG = {
      * ! Used in Flooder.js to set max concurrent proxy connections per thread
      */
     parseInt(
-      process.argv.find((arg) => arg.startsWith("-cpspp="))?.split("=")[1]
-    ) ||
-    parseInt(
       process.argv
         .find((arg) => arg.startsWith("--cps-per-proxy="))
         ?.split("=")[1]
+    ) ||
+    parseInt(
+      process.argv.find((arg) => arg.startsWith("-cpspp="))?.split("=")[1]
     ) ||
     10,
   runtime:
@@ -90,8 +90,8 @@ const BROWSER_CONFIG = {
       ?.split("=")[1] ||
     process.argv.find((arg) => arg.startsWith("-cookie="))?.split("=")[1],
   userAgents:
-    process.argv.find((arg) => arg.startsWith("-uas="))?.split("=")[1] ||
     process.argv.find((arg) => arg.startsWith("--uas-file="))?.split("=")[1] ||
+    process.argv.find((arg) => arg.startsWith("-uas="))?.split("=")[1] ||
     "../files/uas.txt",
   cookiesFile:
     process.argv
@@ -114,11 +114,11 @@ const BROWSER_CONFIG = {
     process.argv.find((arg) => arg.startsWith("-cfc-file="))?.split("=")[1] ||
     "../files/cf_clearance.txt",
   proxyFile:
-    process.argv.find((arg) => arg.startsWith("-p="))?.split("=")[1] ||
     process.argv
       .find((arg) => arg.startsWith("--proxy-file="))
       ?.split("=")[1] ||
-    "proxies.txt",
+    process.argv.find((arg) => arg.startsWith("-p="))?.split("=")[1] ||
+    "../files/proxies.txt",
 };
 
 const args = process.argv.slice(2);
@@ -544,7 +544,7 @@ async function solveTurnstile(targetUrl, browserId, browsers) {
 }
 
 async function startMultipleBrowsers(targetUrl, browserCount = 10) {
-  log("FARM", `Starting ${browserCount} browsers for cookie farming...`);
+  log("FARM", `Starting ${browserCount} browsers...`);
 
   const browserPromises = [];
   const browsers = [];
@@ -578,7 +578,7 @@ async function startMultipleBrowsers(targetUrl, browserCount = 10) {
 
   log(
     "SUCCESS",
-    `Cookie farming completed! ${successfulBrowsers.length}/${browserCount} browsers successful`
+    `Browsers completed, engaging flooders! ${successfulBrowsers.length}/${browserCount} browsers successful`
   );
 
   if (successfulBrowsers.length > 0) {

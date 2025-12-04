@@ -104,11 +104,7 @@ export async function solveCloudflare(page, browserId, browserData, proxy) {
      * ? to the CookieObject to then add this to the browserData.
      */
 
-    const cookieObject = await createCookieObject(
-      cookies,
-      proxy.host,
-      "cf_clearance"
-    );
+    const cookieObject = await createCookieObject(cookies, proxy.host, "*");
 
     /**
      * * Write cookie and proxy to earlier created browserDataObject
