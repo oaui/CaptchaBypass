@@ -271,12 +271,13 @@ async function handle3x3Grid(
       );
       tableStillPresent = (await recaptchaFrame.$$("table")).length > 0;
       if (!tableStillPresent) {
+        log("SUCCESS", `Unable to locate captcha form, proceeding.`);
         solved = true;
       }
       /**
        * ? Check if the captcha table is still here and if the current captcha was solved already
        */
-      if (indexes && solved) {
+      if (solved) {
         return true;
       }
     }
@@ -300,6 +301,7 @@ async function handle4x4Grid(
   const indexedResponse = await handleResponse(response, cells.length);
   const clickIndexes = await clickElements(
     recaptchaFrame,
+
     indexedResponse,
     cells,
     browserId
@@ -350,18 +352,20 @@ async function handle4x4Grid(
       const indexedSolution = await handleResponse(solution, newCells.length);
       const indexes = await clickElements(
         recaptchaFrame,
+
         indexedSolution,
         newCells,
         browserId
       );
       tableStillPresent = (await recaptchaFrame.$$("table")).length > 0;
       if (!tableStillPresent) {
+        log("SUCCESS", `Unable to locate captcha form, proceeding.`);
         solved = true;
       }
       /**
        * ? Check if the captcha table is still here and if the current captcha was solved already
        */
-      if (indexes && solved) {
+      if (solved) {
         return true;
       }
     }
@@ -391,7 +395,6 @@ async function clickElements(frame, indexes, cells, browserId) {
     }
     await addHumanLikeBehaviorInFrame(frame, browserId);
     const verifyButton = await frame.$("#recaptcha-verify-button");
-    await new Promise((r) => setTimeout(r, randnum(1000, 3000)));
     if (verifyButton) await verifyButton.click();
     return true;
   } catch (e) {
