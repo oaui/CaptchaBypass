@@ -12,17 +12,40 @@ export async function autoSolver(page, browserData, browserId) {
 
   const frames = page.frames();
 
-  /**
-   * TODO: Implement something, that detects captcha types, such as BunnyNet, Vercel etc.
-   */
+  const captchaElements = [
+    "vercel",
+    "bunnynet",
+    "cloudflare",
+    "ddos-guard",
+    "captcha",
+    "challange",
+    "verification",
+    "checkbox",
+  ];
 
   for (const frame of frames) {
     try {
-      // Only select <div> elements
-      const elements = await frame.$$("div");
+      const elements = await frame.$$("div, input");
 
       for (const element of elements) {
         try {
+          const attrs = await frame.evaluate((el) => {
+            return {
+              id: el.id || "",
+              className: el.className || "",
+            };
+          }, element);
+
+          const idLower = attrs.id.toLowerCase();
+          const classLower = attrs.className.toLowerCase();
+
+          const matches = captchaElements.some(
+            (keyword) =>
+              idLower.includes(keyword) || classLower.includes(keyword)
+          );
+
+          if (!matches) continue;
+
           await element.hover({ force: true, trial: Math.random() < 0.3 });
           await new Promise((resolve) =>
             setTimeout(resolve, randnum(100, 300))
