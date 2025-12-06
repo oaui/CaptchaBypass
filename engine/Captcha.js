@@ -29,6 +29,12 @@ const BROWSER_CONFIG = {
     process.argv.find((arg) => arg.startsWith("-t="))?.split("=")[1] ||
     process.argv.find((arg) => arg.startsWith("--target="))?.split("=")[1] ||
     "https://example.com",
+  headless:
+    process.argv.find((arg) => arg.startsWith("-hl="))?.split("=")[1] ===
+      "true" ||
+    process.argv.find((arg) => arg.startsWith("--headless="))?.split("=")[1] ===
+      "true" ||
+    false,
   targetPort:
     parseInt(
       process.argv.find((arg) => arg.startsWith("-port="))?.split("=")[1]
@@ -135,6 +141,11 @@ for (let i = 0; i < args.length; i++) {
       BROWSER_CONFIG.targetPort = args[i + 1];
       i++;
       break;
+    case "--headless":
+    case "-hl":
+      BROWSER_CONFIG.headless = args[i + 1] === "true";
+      i++;
+      break;
     case "--browsers":
     case "-b":
       BROWSER_CONFIG.browserCount = parseInt(args[i + 1]);
@@ -202,6 +213,7 @@ Required Options:
 
 Optional Options:
   -b, --browsers <num>     Number of browsers (default: 5)
+  -hl, --headless <true|false>  Run browsers in headless mode (default: false)
   -rps, --requests <num>   Requests per second (default: 1)
   -cpspp, --cps-per-proxy <num>  Max concurrent proxy
                           connections per thread (default: 10)
@@ -445,7 +457,7 @@ async function solveTurnstile(targetUrl, browserId, browsers) {
     `Browser ${browserId}: Window: ${windowSize.width}x${windowSize.height}, Locale: ${locale}, Timezone: ${timezone}, Proxy: ${proxies[proxyIndex].host}:${proxies[proxyIndex].port}`
   );
   const connectOptions = {
-    headless: false,
+    headless: BROWSER_CONFIG.headless == true ? "new" : false,
     turnstile: true,
     args: [
       "--no-sandbox",
@@ -470,8 +482,8 @@ async function solveTurnstile(targetUrl, browserId, browsers) {
       userAgent: userAgent,
     },
     proxy: {
-      host: proxies[proxyIndex].host,
-      port: proxies[proxyIndex].port,
+      host: proxies[proxyIndex].host || "127.0.0.1",
+      port: proxies[proxyIndex].port || 443,
       username: proxies[proxyIndex].username || null,
       password: proxies[proxyIndex].password || null,
     },
