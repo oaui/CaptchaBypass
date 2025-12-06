@@ -1,10 +1,4 @@
 import * as puppeteer from "puppeteer-real-browser";
-import fs from "fs";
-import path from "path";
-import { fileURLToPath } from "url";
-import { exec } from "child_process";
-import { promisify } from "util";
-import { createRequire } from "module";
 
 import { Flooder } from "./Flooder.js";
 import {
@@ -21,9 +15,6 @@ import { solveRecaptcha } from "./Recaptcha.js";
 import { log, detectChallenges } from "../util/Util.js";
 import { autoBypass } from "./Autobypass/Unknown.js";
 
-const require = createRequire(import.meta.url);
-
-const execPromise = promisify(exec);
 const BROWSER_CONFIG = {
   targetUrl:
     process.argv.find((arg) => arg.startsWith("-t="))?.split("=")[1] ||
@@ -325,35 +316,12 @@ function getProxy(proxyArray) {
   }
 }
 
-async function installPackage() {
-  try {
-    await require("puppeteer-real-browser");
-    return true;
-  } catch (e) {
-    log("INFO", "Installing puppeteer-real-browser...");
-
-    try {
-      await execPromise("npm install puppeteer-real-browser");
-      log("SUCCESS", "puppeteer-real-browser installed successfully.");
-      return true;
-    } catch (error) {
-      log("ERROR", "Failed to install puppeteer-real-browser.");
-      log("WARN", "Try manually: npm install puppeteer-real-browser");
-      return false;
-    }
-  }
-}
-
 async function solveTurnstile(targetUrl, browserId, browsers) {
-  const installed = await installPackage();
-  if (!installed) return false;
-
   const proxyIndex = browserId;
 
   let connect;
   try {
-    const puppeteerModule = await require("puppeteer-real-browser");
-    connect = puppeteerModule.connect;
+    connect = puppeteer.connect;
   } catch (error) {
     log(
       "ERROR",
@@ -482,8 +450,8 @@ async function solveTurnstile(targetUrl, browserId, browsers) {
       userAgent: userAgent,
     },
     proxy: {
-      host: proxies[proxyIndex].host || "127.0.0.1",
-      port: proxies[proxyIndex].port || 443,
+      host: proxies[proxyIndex].host || null,
+      port: proxies[proxyIndex].port || null,
       username: proxies[proxyIndex].username || null,
       password: proxies[proxyIndex].password || null,
     },

@@ -13,7 +13,7 @@ export async function solveCloudflare(page, browserId, browserData, proxy) {
   try {
     await page.waitForSelector('input[type="checkbox"]', {
       visible: true,
-      timeout: 30000,
+      timeout: 10000,
     });
 
     await addHumanLikeBehavior(page, browserId);
