@@ -256,7 +256,7 @@ export async function saveToConsolidatedFiles(
   }
 }
 export function suspiciousClickableSelector() {
-  const clickable = "a[href], button, input:not([type='hidden']), div";
+  const clickable = "input:not([type='hidden']), div";
 
   return [
     `${clickable}[id*='checkbox' i]`,

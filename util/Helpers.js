@@ -1,6 +1,9 @@
 import fs from "fs";
 import path from "path";
 import fetch from "node-fetch";
+import execSync from "child_process";
+import os from "os";
+
 /**
  * ? Integer
  */
@@ -88,4 +91,37 @@ export async function getAbuseStatus(ip) {
     }
   }
   return { suspectedAbuse, highScore, possibleAbuse, abuseScore };
+}
+export function getChromePath() {
+  const platform = os.platform();
+
+  try {
+    if (platform === "win32") {
+      // Try default paths
+      const paths = [
+        "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe",
+        "C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe",
+        process.env.LOCALAPPDATA + "\\Google\\Chrome\\Application\\chrome.exe",
+      ];
+
+      for (const path of paths) {
+        if (fs.existsSync(path)) return path;
+      }
+
+      // Use where command
+      return execSync("where chrome").toString().trim().split("\n")[0];
+    } else if (platform === "darwin") {
+      return "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome";
+    } else if (platform === "linux") {
+      // Try which command
+      try {
+        return execSync("which google-chrome").toString().trim();
+      } catch {
+        return execSync("which chromium-browser").toString().trim();
+      }
+    }
+  } catch (error) {
+    console.error("Could not find Chrome:", error);
+    return null;
+  }
 }

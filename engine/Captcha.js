@@ -7,6 +7,7 @@ import {
   getTimeZoneByIp,
   randnum,
   readFile,
+  getChromePath,
 } from "../util/Helpers.js";
 import { BrowserObject } from "../obj/BrowserObject.js";
 import { solveCloudflare } from "./Cloudflare.js";
@@ -223,7 +224,7 @@ Examples:
   node browser.js -t https://example.com -b 10 -dl 120
   node browser.js -t https://example.com -p custom_proxies.txt
 
-Note: This tool automates browsers to collect Cloudflare clearance tokens.
+Note: This tool automates browsers.
             `);
       process.exit(0);
       break;
@@ -448,6 +449,7 @@ async function solveTurnstile(targetUrl, browserId, browsers) {
     },
     customConfig: {
       userAgent: userAgent,
+      executablePath: getChromePath(),
     },
     proxy: {
       host: proxies[proxyIndex].host || null,
