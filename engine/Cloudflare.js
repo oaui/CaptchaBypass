@@ -13,7 +13,7 @@ export async function solveCloudflare(page, browserId, browserData, proxy) {
   try {
     await page.waitForSelector('input[type="checkbox"]', {
       visible: true,
-      timeout: 30000,
+      timeout: 10000,
     });
 
     await addHumanLikeBehavior(page, browserId);
@@ -104,11 +104,7 @@ export async function solveCloudflare(page, browserId, browserData, proxy) {
      * ? to the CookieObject to then add this to the browserData.
      */
 
-    const cookieObject = await createCookieObject(
-      cookies,
-      proxy.host,
-      "cf_clearance"
-    );
+    const cookieObject = await createCookieObject(cookies, proxy.host, "*");
 
     /**
      * * Write cookie and proxy to earlier created browserDataObject

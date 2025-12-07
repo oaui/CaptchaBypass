@@ -55,6 +55,10 @@ export async function solveRecaptcha(page, browserId, browserData, proxy) {
           });
           const captchaSolved = await aiSolver(page, imagePath, browserId);
           if (captchaSolved) {
+            log(
+              "SUCCESS",
+              `Browser ${browserId} reCaptcha passed, fetching cookies.`
+            );
             /**
              * If the captcha succeeded, grab all cookies from the page
              */
@@ -172,8 +176,6 @@ async function aiSolver(page, imagePath, browserId) {
   }
   const cells = await recaptchaFrame.$$(`${selector} td`);
 
-  console.log("DEBUG");
-
   let promise = false;
   if (has3x3) {
     promise = await handle3x3Grid(
@@ -210,10 +212,7 @@ async function handle3x3Grid(
   browserId
 ) {
   log("INFO", `Detected 3x3 reCaptcha`);
-  const response = await retrieveAiResponse(
-    imagePath,
-    "Look at the picture of this 3x3 grid. Analyze the captcha, translate the task. Think of it like an array (cell[0] cell[1]...), starting from the upper left corner, which is cell[0]. Tell me, which pictures I have to click, to pass the captcha. Only answer with the correct (array)-elements format: cell[3], cell[6]"
-  );
+  const response = await retrieveAiResponse(imagePath, prompt("3x3"));
 
   const indexedResponse = await handleResponse(response, cells.length);
   const clickIndexes = await clickElements(
@@ -234,13 +233,15 @@ async function handle3x3Grid(
       const x3Selector = ".rc-imageselect-table-33 td";
       let x3selectorPresent = await recaptchaFrame.$$(x3Selector);
 
+      /**
+       * * If the selector for the table is not present anymore, start the solving logic for the corresponding captcha type
+       */
       if (x3selectorPresent.length === 0) {
         log("INFO", `Unable to find 3x3 grid, captcha change detected.`);
         const altImagePath = `../files/captchas/4x4/recaptcha-checkbox-${browserId} - ${Date.now()}.png`;
         await page.screenshot({ path: altImagePath });
         const newCells = await recaptchaFrame.$$(`.rc-imageselect-table-44 td`);
-        log("INFO", newCells.length);
-        const newCaptcha = await handle3x3Grid(
+        const newCaptcha = await handle4x4Grid(
           page,
           altImagePath,
           newCells,
@@ -258,10 +259,7 @@ async function handle3x3Grid(
       let frameImagePath = `../files/captchas/3x3/recaptcha-checkbox-${browserId} - ${Date.now()}.png`;
       await page.screenshot({ path: frameImagePath });
 
-      const solution = await retrieveAiResponse(
-        frameImagePath,
-        "Look at the picture of this 3x3 grid. Analyze the captcha, translate the task. Think of it like an array (cell[0] cell[1]...), starting from the upper left corner, which is cell[0]. Tell me, which pictures I have to click, to pass the captcha. Only answer with the correct (array)-elements format: cell[3], cell[6]"
-      );
+      const solution = await retrieveAiResponse(frameImagePath, prompt("3x3"));
       const selector = ".rc-imageselect-table-33 td";
       const newCells = await recaptchaFrame.$$(selector);
       const indexedSolution = await handleResponse(solution, newCells.length);
@@ -273,12 +271,13 @@ async function handle3x3Grid(
       );
       tableStillPresent = (await recaptchaFrame.$$("table")).length > 0;
       if (!tableStillPresent) {
+        log("SUCCESS", `Unable to locate captcha form, proceeding.`);
         solved = true;
       }
       /**
        * ? Check if the captcha table is still here and if the current captcha was solved already
        */
-      if (indexes && solved) {
+      if (solved) {
         return true;
       }
     }
@@ -298,13 +297,11 @@ async function handle4x4Grid(
 ) {
   log("INFO", `Detected 4x4 reCaptcha`);
   let solveTries = 0;
-  const response = await retrieveAiResponse(
-    imagePath,
-    "Look at the picture of this 4x4 grid. Analyze the captcha, translate the task. Think of it like an array (cell[0] cell[1]...), starting from the upper left corner, which is cell[0]. Tell me, which pictures I have to click, to pass the captcha. Only answer with the correct (array)-elements format: cell[3], cell[6]"
-  );
+  const response = await retrieveAiResponse(imagePath, prompt("4x4"));
   const indexedResponse = await handleResponse(response, cells.length);
   const clickIndexes = await clickElements(
     recaptchaFrame,
+
     indexedResponse,
     cells,
     browserId
@@ -329,7 +326,6 @@ async function handle4x4Grid(
           const newCells = await recaptchaFrame.$$(
             `.rc-imageselect-table-33 td`
           );
-          log("INFO", newCells.length);
           const newCaptcha = await handle3x3Grid(
             page,
             altImagePath,
@@ -350,28 +346,26 @@ async function handle4x4Grid(
       /**
        * Ask for a new solution
        */
-      const solution = await retrieveAiResponse(
-        frameImagePath,
-        "Look at the picture of this 4x4 grid. Analyze the captcha, translate the task. Think of it like an array (cell[0] cell[1]...), starting from the upper left corner, which is cell[0]. Tell me, which pictures I have to click, to pass the captcha. Only answer with the correct (array)-elements format: cell[3], cell[6]"
-      );
-
+      const solution = await retrieveAiResponse(frameImagePath, prompt("4x4"));
       const selector = ".rc-imageselect-table-44 td";
       const newCells = await recaptchaFrame.$$(selector);
       const indexedSolution = await handleResponse(solution, newCells.length);
       const indexes = await clickElements(
         recaptchaFrame,
+
         indexedSolution,
         newCells,
         browserId
       );
       tableStillPresent = (await recaptchaFrame.$$("table")).length > 0;
       if (!tableStillPresent) {
+        log("SUCCESS", `Unable to locate captcha form, proceeding.`);
         solved = true;
       }
       /**
        * ? Check if the captcha table is still here and if the current captcha was solved already
        */
-      if (indexes && solved) {
+      if (solved) {
         return true;
       }
     }
@@ -401,7 +395,6 @@ async function clickElements(frame, indexes, cells, browserId) {
     }
     await addHumanLikeBehaviorInFrame(frame, browserId);
     const verifyButton = await frame.$("#recaptcha-verify-button");
-    await new Promise((r) => setTimeout(r, randnum(1000, 3000)));
     if (verifyButton) await verifyButton.click();
     return true;
   } catch (e) {
@@ -422,4 +415,8 @@ async function handleResponse(response, cellsCount) {
     `parsed indices: ${JSON.stringify(indices)} (cells=${cellsCount})`
   );
   return indices;
+}
+
+function prompt(gridType) {
+  return `Look at the picture of this ${gridType} grid. Analyze the captcha, translate the task. Think of it like an array (cell[0] cell[1]...), starting from the upper left corner, which is cell[0]. Tell me, which pictures I have to click, to pass the captcha. Only answer with the correct (array)-elements format: cell[3], cell[6]`;
 }

