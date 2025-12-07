@@ -12,6 +12,7 @@
   "license": "ISC",
   "dependencies": {
     "dotenv": "^17.2.1",
+    "proxy-agent": "^6.5.0",
     "puppeteer": "npm:rebrowser-puppeteer@^23.3.1",
     "puppeteer-core": "npm:rebrowser-puppeteer-core@^23.3.1",
     "puppeteer-extra": "^3.3.6",

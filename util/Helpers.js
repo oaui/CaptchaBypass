@@ -4,6 +4,9 @@ import fetch from "node-fetch";
 import execSync from "child_process";
 import os from "os";
 
+import { log } from "./Util.js";
+import { ProxyAgent } from "proxy-agent";
+
 /**
  * ? Integer
  */
@@ -32,7 +35,7 @@ export function readFile(filepath) {
       .filter((line) => line && !line.startsWith("#"));
     return content;
   } catch (error) {
-    console.log(`Can not find or read file: ${filepath}`);
+    log("ERROR", `Error reading file at ${filepath}: ${error}`);
     return [];
   }
 }
@@ -121,7 +124,61 @@ export function getChromePath() {
       }
     }
   } catch (error) {
-    console.error("Could not find Chrome:", error);
+    log("ERROR", `Error finding Chrome path: ${error}`);
     return null;
   }
+}
+export async function proxyTest(proxyArr, proxyTimeout, filterAbusive) {
+  const proxyTests = proxyArr.map(async (proxy) => {
+    const agent = new ProxyAgent({
+      protocol: "http",
+      host: proxy.host,
+      port: proxy.port,
+      auth: proxy.username ? `${proxy.username}:${proxy.password}` : undefined,
+    });
+
+    try {
+      const res = await fetch("https://www.google.com", {
+        agent,
+        timeout: proxyTimeout,
+      });
+
+      if (res.ok) {
+        log("PROXY_SUCCESS", `Proxy ${proxy.host}:${proxy.port} is working.`);
+        if (filterAbusive) {
+          if ((await getAbuseStatus(proxy.host)).abuseScore > 20) {
+            log(
+              "PROXY_FAILED",
+              `Proxy ${proxy.host}:${proxy.port} is abusive (abuseDb score > 20).`
+            );
+            return null;
+          } else {
+            log(
+              "PROXY_SUCCESS",
+              `Proxy ${proxy.host}:${proxy.port} was checked successfully and does not seem to be abusive.`
+            );
+            return proxy;
+          }
+        }
+        return proxy;
+      } else {
+        log("PROXY_FAILED", `Proxy ${proxy.host}:${proxy.port} failed test.`);
+      }
+    } catch (error) {
+      log(
+        "PROXY_FAILED",
+        `Proxy ${proxy.host}:${proxy.port} failed test: ${error}`
+      );
+    }
+
+    return null;
+  });
+
+  const results = await Promise.allSettled(proxyTests);
+
+  const working = results
+    .filter((r) => r.status === "fulfilled" && r.value !== null)
+    .map((r) => r.value);
+
+  return working;
 }

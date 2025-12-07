@@ -8,6 +8,7 @@ import {
   randnum,
   readFile,
   getChromePath,
+  proxyTest,
 } from "../util/Helpers.js";
 import { BrowserObject } from "../obj/BrowserObject.js";
 import { solveCloudflare } from "./Cloudflare.js";
@@ -26,6 +27,20 @@ const BROWSER_CONFIG = {
       "true" ||
     process.argv.find((arg) => arg.startsWith("--headless="))?.split("=")[1] ===
       "true" ||
+    false,
+  filterProxies:
+    process.argv.find((arg) => arg.startsWith("-fp="))?.split("=")[1] ===
+      "true" ||
+    process.argv
+      .find((arg) => arg.startsWith("--filter-proxies="))
+      ?.split("=")[1] === "true" ||
+    false,
+  filterAbusiveProxies:
+    process.argv.find((arg) => arg.startsWith("-fap="))?.split("=")[1] ===
+      "true" ||
+    process.argv
+      .find((arg) => arg.startsWith("--filter-abusive-proxies="))
+      ?.split("=")[1] === "true" ||
     false,
   targetPort:
     parseInt(
@@ -78,6 +93,16 @@ const BROWSER_CONFIG = {
       process.argv.find((arg) => arg.startsWith("-runtime="))?.split("=")[1]
     ) ||
     120,
+  proxyTimeout:
+    parseInt(
+      process.argv
+        .find((arg) => arg.startsWith("--proxy-timeout="))
+        ?.split("=")[1]
+    ) ||
+    parseInt(
+      process.argv.find((arg) => arg.startsWith("-pt="))?.split("=")[1]
+    ) ||
+    8000,
   waitTime:
     process.argv.find((arg) => arg.startsWith("--waitTime="))?.split("=")[1] ||
     process.argv.find((arg) => arg.startsWith("-wt="))?.split("=")[1] ||
@@ -138,6 +163,16 @@ for (let i = 0; i < args.length; i++) {
       BROWSER_CONFIG.headless = args[i + 1] === "true";
       i++;
       break;
+    case "--filter-proxies":
+    case "-fp":
+      BROWSER_CONFIG.filterProxies = args[i + 1] === "true";
+      i++;
+      break;
+    case "--filter-abusive-proxies":
+    case "-fap":
+      BROWSER_CONFIG.filterAbusiveProxies = args[i + 1] === "true";
+      i++;
+      break;
     case "--browsers":
     case "-b":
       BROWSER_CONFIG.browserCount = parseInt(args[i + 1]);
@@ -156,6 +191,11 @@ for (let i = 0; i < args.length; i++) {
     case "--time":
     case "-runtime":
       BROWSER_CONFIG.runtime = parseInt(args[i + 1]);
+      i++;
+      break;
+    case "--proxy-timeout":
+    case "-pt":
+      BROWSER_CONFIG.proxyTimeout = parseInt(args[i + 1]);
       i++;
       break;
     case "--waitTime":
@@ -206,6 +246,10 @@ Required Options:
 Optional Options:
   -b, --browsers <num>     Number of browsers (default: 5)
   -hl, --headless <true|false>  Run browsers in headless mode (default: false)
+  -fp, --filter-proxies <true|false>  Filter non working proxies (default: false)
+  -fap, --filter-abusive-proxies <true|false>  Filter abusive proxies (abuseDb score > 20) (default: false)
+  -port, --targetPort <port>  Target port if not standard, only relevant for Flooder (default: 80/443)
+  -pt, --proxy-timeout <ms>  Proxy connection timeout in milliseconds (default: 8000) Notice: Only set this, if --filter-proxies or -fp is set to true!
   -rps, --requests <num>   Requests per second (default: 1)
   -cpspp, --cps-per-proxy <num>  Max concurrent proxy
                           connections per thread (default: 10)
@@ -352,10 +396,23 @@ async function solveTurnstile(targetUrl, browserId, browsers) {
    */
   const proxiesArr = readFile(BROWSER_CONFIG.proxyFile);
 
-  const proxies =
-    getProxy(
-      proxiesArr
-    ); /** Returns Array of proxy objects Format: arr : obj: host: 0.0.0.0, port: 80 */
+  let proxies = [];
+  if (BROWSER_CONFIG.filterProxies) {
+    proxies = await proxyTest(
+      getProxy(proxiesArr),
+      BROWSER_CONFIG.proxyTimeout,
+      BROWSER_CONFIG.filterAbusiveProxies
+    );
+  } else {
+    proxies =
+      getProxy(
+        proxiesArr
+      ); /** Returns Array of proxy objects Format: arr : obj: host: 0.0.0.0, port: 80 */
+  }
+  if (proxies.length <= 0) {
+    log("ERROR", `Browser ${browserId}: No valid proxies available.`);
+  }
+
   const windowSize = getRandomWindowSize();
   const userAgent = getRandomUserAgent(userAgentArr);
   /**
@@ -553,7 +610,7 @@ async function startMultipleBrowsers(targetUrl, browserCount = 10) {
     )
     .filter(Boolean);
 
-  log("INFO", `Results: ${results.length}`);
+  log("INFO", `Amount of browser instances: ${results.length}`);
   const successfulBrowsers = results.filter(
     (r) => r && r.success && r.browserData
   );
