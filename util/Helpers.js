@@ -155,7 +155,7 @@ export async function proxyTest(proxyArr, proxyTimeout, filterAbusive) {
           } else {
             log(
               "PROXY_SUCCESS",
-              `Proxy ${proxy.host}:${proxy.port} is was checked successfully and does not seem to be abusive.`
+              `Proxy ${proxy.host}:${proxy.port} was checked successfully and does not seem to be abusive.`
             );
             return proxy;
           }
