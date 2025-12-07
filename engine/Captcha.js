@@ -411,6 +411,8 @@ async function solveTurnstile(targetUrl, browserId, browsers) {
   }
   if (proxies.length <= 0) {
     log("ERROR", `Browser ${browserId}: No valid proxies available.`);
+  } else {
+    log("PROXY", `Browser ${browserId}: Amount of proxies: ${proxies.length}`);
   }
 
   const windowSize = getRandomWindowSize();
