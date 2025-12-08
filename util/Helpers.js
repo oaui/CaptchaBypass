@@ -61,39 +61,54 @@ export async function getAbuseStatus(ip) {
     `https://api.abuseipdb.com/api/v2/check?ipAddress=${ip}`,
     {
       headers: {
-        Key: process.env.ABUSEIPDB_API_KEY,
+        Key: process.env.ABUSEDB_API_KEY_2,
         Accept: "application/json",
       },
     }
   );
   const data = await result.json();
+
   let suspectedAbuse = false;
   let highScore = false;
   let possibleAbuse = false;
   let abuseScore = 0;
-  if (data.data.isPublic) {
-    if (data.data.totalReports > 150) {
-      suspectedAbuse = true;
-      abuseScore = data.data.abuseConfidenceScore;
+  try {
+    if (!data.detail) {
+      if (data.data.isPublic) {
+        if (data.data.totalReports > 150) {
+          suspectedAbuse = true;
+          abuseScore = data.data.abuseConfidenceScore;
+        }
+        if (data.data.abuseConfidenceScore > 75) {
+          highScore = true;
+          abuseScore = data.data.abuseConfidenceScore;
+        }
+        if (data.data.abuseConfidenceScore == 100) {
+          suspectedAbuse = true;
+          highScore = true;
+          abuseScore = data.data.abuseConfidenceScore;
+        }
+        if (
+          data.data.abuseConfidenceScore > 10 &&
+          data.data.abuseConfidenceScore < 50
+        ) {
+          possibleAbuse = true;
+          abuseScore = data.data.abuseConfidenceScore;
+        }
+      }
+    } else {
+      return { success: false, message: JSON.stringify(data.errors) };
     }
-    if (data.data.abuseConfidenceScore > 75) {
-      highScore = true;
-      abuseScore = data.data.abuseConfidenceScore;
-    }
-    if (data.data.abuseConfidenceScore == 100) {
-      suspectedAbuse = true;
-      highScore = true;
-      abuseScore = data.data.abuseConfidenceScore;
-    }
-    if (
-      data.data.abuseConfidenceScore > 10 &&
-      data.data.abuseConfidenceScore < 50
-    ) {
-      possibleAbuse = true;
-      abuseScore = data.data.abuseConfidenceScore;
-    }
+  } catch (error) {
+    return { success: false, message: JSON.stringify(data.errors) };
   }
-  return { suspectedAbuse, highScore, possibleAbuse, abuseScore };
+  return {
+    success: true,
+    suspectedAbuse,
+    highScore,
+    possibleAbuse,
+    abuseScore,
+  };
 }
 export function getChromePath() {
   const platform = os.platform();
@@ -128,8 +143,8 @@ export function getChromePath() {
     return null;
   }
 }
-export async function proxyTest(proxyArr, proxyTimeout, filterAbusive) {
-  const proxyTests = proxyArr.map(async (proxy) => {
+export async function proxyTest(proxyArr, proxyTimeout) {
+  const proxyTests = proxyArr.map(async (proxy, index) => {
     const agent = new ProxyAgent({
       protocol: "http",
       host: proxy.host,
@@ -138,47 +153,50 @@ export async function proxyTest(proxyArr, proxyTimeout, filterAbusive) {
     });
 
     try {
-      const res = await fetch("https://www.google.com", {
-        agent,
-        timeout: proxyTimeout,
-      });
+      const test = timeoutPromise(
+        proxyTimeout * 2,
+        fetch("https://www.google.com", {
+          agent,
+          timeout: proxyTimeout,
+        })
+      );
 
-      if (res.ok) {
-        log("PROXY_SUCCESS", `Proxy ${proxy.host}:${proxy.port} is working.`);
-        if (filterAbusive) {
-          if ((await getAbuseStatus(proxy.host)).abuseScore > 20) {
-            log(
-              "PROXY_FAILED",
-              `Proxy ${proxy.host}:${proxy.port} is abusive (abuseDb score > 20).`
-            );
-            return null;
-          } else {
-            log(
-              "PROXY_SUCCESS",
-              `Proxy ${proxy.host}:${proxy.port} was checked successfully and does not seem to be abusive.`
-            );
-            return proxy;
-          }
-        }
-        return proxy;
-      } else {
-        log("PROXY_FAILED", `Proxy ${proxy.host}:${proxy.port} failed test.`);
+      const res = await test;
+
+      if (!res.ok) {
+        log(
+          "PROXY_FAILED",
+          `Proxy (${index}/${proxyArr.length}) ${proxy.host}:${proxy.port} failed test.`
+        );
+        return null;
       }
+
+      log(
+        "PROXY_SUCCESS",
+        `Proxy (${index}/${proxyArr.length}) ${proxy.host}:${proxy.port} is working.`
+      );
+
+      return { ...proxy };
     } catch (error) {
       log(
         "PROXY_FAILED",
         `Proxy ${proxy.host}:${proxy.port} failed test: ${error}`
       );
+      return null;
     }
-
-    return null;
   });
 
-  const results = await Promise.allSettled(proxyTests);
+  const settled = await Promise.all(proxyTests);
 
-  const working = results
-    .filter((r) => r.status === "fulfilled" && r.value !== null)
-    .map((r) => r.value);
+  const workingProxies = settled.filter((p) => p !== null);
 
-  return working;
+  return workingProxies;
+}
+function timeoutPromise(ms, promise) {
+  return Promise.race([
+    promise,
+    new Promise((_, reject) =>
+      setTimeout(() => reject(new Error("TimeoutExceeded")), ms)
+    ),
+  ]);
 }

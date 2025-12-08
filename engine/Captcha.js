@@ -35,13 +35,6 @@ const BROWSER_CONFIG = {
       .find((arg) => arg.startsWith("--filter-proxies="))
       ?.split("=")[1] === "true" ||
     false,
-  filterAbusiveProxies:
-    process.argv.find((arg) => arg.startsWith("-fap="))?.split("=")[1] ===
-      "true" ||
-    process.argv
-      .find((arg) => arg.startsWith("--filter-abusive-proxies="))
-      ?.split("=")[1] === "true" ||
-    false,
   targetPort:
     parseInt(
       process.argv.find((arg) => arg.startsWith("-port="))?.split("=")[1]
@@ -168,11 +161,6 @@ for (let i = 0; i < args.length; i++) {
       BROWSER_CONFIG.filterProxies = args[i + 1] === "true";
       i++;
       break;
-    case "--filter-abusive-proxies":
-    case "-fap":
-      BROWSER_CONFIG.filterAbusiveProxies = args[i + 1] === "true";
-      i++;
-      break;
     case "--browsers":
     case "-b":
       BROWSER_CONFIG.browserCount = parseInt(args[i + 1]);
@@ -247,7 +235,6 @@ Optional Options:
   -b, --browsers <num>     Number of browsers (default: 5)
   -hl, --headless <true|false>  Run browsers in headless mode (default: false)
   -fp, --filter-proxies <true|false>  Filter non working proxies (default: false)
-  -fap, --filter-abusive-proxies <true|false>  Filter abusive proxies (abuseDb score > 20) (default: false)
   -port, --targetPort <port>  Target port if not standard, only relevant for Flooder (default: 80/443)
   -pt, --proxy-timeout <ms>  Proxy connection timeout in milliseconds (default: 8000) Notice: Only set this, if --filter-proxies or -fp is set to true!
   -rps, --requests <num>   Requests per second (default: 1)
@@ -401,7 +388,8 @@ async function solveTurnstile(targetUrl, browserId, browsers) {
     proxies = await proxyTest(
       getProxy(proxiesArr),
       BROWSER_CONFIG.proxyTimeout,
-      BROWSER_CONFIG.filterAbusiveProxies
+      BROWSER_CONFIG.filterAbusiveProxies,
+      BROWSER_CONFIG.sortProxies
     );
   } else {
     proxies =
