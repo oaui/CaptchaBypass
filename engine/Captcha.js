@@ -573,8 +573,12 @@ async function solveTurnstile(targetUrl, browserId, browsers) {
   }
 }
 
-async function startMultipleBrowsers(targetUrl, browserCount = 10) {
+async function startBrowsers(targetUrl, browserCount = 10) {
   log("FARM", `Starting ${browserCount} browsers...`);
+
+  /**
+   * TODO: Implement proxies logic here, so the proxies are handled, before browsers actually start.
+   */
 
   const browserPromises = [];
   const browsers = [];
@@ -664,10 +668,7 @@ async function main() {
   const TIME_LIMIT = BROWSER_CONFIG.runtime * 1000;
 
   await Promise.race([
-    startMultipleBrowsers(
-      BROWSER_CONFIG.targetUrl,
-      BROWSER_CONFIG.browserCount
-    ),
+    startBrowsers(BROWSER_CONFIG.targetUrl, BROWSER_CONFIG.browserCount),
     new Promise((_, reject) =>
       setTimeout(() => reject(new Error("⏰ Time limit reached")), TIME_LIMIT)
     ),
