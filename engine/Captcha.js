@@ -511,6 +511,7 @@ async function solveTurnstile(targetUrl, browserId, browsers) {
     const result = await connect(connectOptions);
     browser = result.browser;
     page = result.page;
+    page = await browser.newPage();
 
     browsers[browserId - 1] = browser;
   } catch (error) {
@@ -634,7 +635,6 @@ async function startMultipleBrowsers(targetUrl, browserCount = 10) {
     const flooderPromises = [];
     for (const { browserData } of successfulBrowsers) {
       //console.dir(browserData, { depth: null });
-      await new Promise((r) => setTimeout(r, 3000));
       /**
        * ? For every promise in the results array, give one browserData object to the flooder.
        */

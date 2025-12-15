@@ -281,8 +281,7 @@ async function hasUnknownCaptcha(page) {
     titleLower.includes("captcha") ||
     titleLower.includes("challenge") ||
     titleLower.includes("verification") ||
-    bodyLower.includes("checking") ||
-    bodyLower.includes("cdn")
+    bodyLower.includes("checking")
   ) {
     return true;
   }

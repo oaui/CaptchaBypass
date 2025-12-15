@@ -44,6 +44,8 @@ export async function autoSolver(page, browserData, browserId) {
               idLower.includes(keyword) || classLower.includes(keyword)
           );
 
+          await handleElement(page, element);
+
           if (!matches) continue;
 
           await element.hover({ force: true, trial: Math.random() < 0.3 });
@@ -57,4 +59,54 @@ export async function autoSolver(page, browserData, browserId) {
   }
 
   return { success: true, browserData };
+}
+async function handleElement(page, element) {
+  const textToCheck = [
+    "login",
+    "sign in",
+    "signup",
+    "sign up",
+    "register",
+    "my account",
+    "account",
+  ];
+
+  try {
+    const innerText = await element.evaluate(
+      (el) => el.innerText?.toLowerCase() || ""
+    );
+
+    if (!textToCheck.some((t) => innerText.includes(t.toLowerCase()))) {
+      return { success: false, message: "Keyword not matched" };
+    }
+
+    await element.click().catch(() => {});
+    await page.waitForTimeout(300);
+
+    for (const frame of page.frames()) {
+      const inputs = await frame.$$("input");
+      for (const el of inputs) {
+        try {
+          await el.fill("asads@asdfasdf");
+        } catch {}
+      }
+
+      const buttons = await frame.$$("button");
+      for (const el of buttons) {
+        const btnText = await el.evaluate(
+          (x) => x.innerText?.toLowerCase() || ""
+        );
+
+        if (btnText.includes("submit") || btnText.includes("next")) {
+          try {
+            await el.click();
+          } catch {}
+        }
+      }
+    }
+
+    return { success: true, message: "" };
+  } catch (error) {
+    return { success: false, message: error.toString() };
+  }
 }
