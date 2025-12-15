@@ -659,10 +659,7 @@ async function startMultipleBrowsers(targetUrl, browserCount = 10) {
 }
 
 async function main() {
-  log(
-    "INFO",
-    "Starting browser automation for Cloudflare clearance collection..."
-  );
+  log("INFO", "Starting browser automation...");
 
   const TIME_LIMIT = BROWSER_CONFIG.runtime * 1000;
 
