@@ -348,8 +348,8 @@ function getProxy(proxyArray) {
   }
 }
 
-async function solveTurnstile(targetUrl, browserId, browsers) {
-  const proxyIndex = browserId;
+async function setupBrowser(targetUrl, browserId, browsers, proxies) {
+  const proxyIndex = browserId - 1;
 
   let connect;
   try {
@@ -378,25 +378,6 @@ async function solveTurnstile(targetUrl, browserId, browsers) {
    */
   const locales = formatLocales(localesArr);
 
-  /**
-   * Proxies
-   */
-  const proxiesArr = readFile(BROWSER_CONFIG.proxyFile);
-
-  let proxies = [];
-  if (BROWSER_CONFIG.filterProxies) {
-    proxies = await proxyTest(
-      getProxy(proxiesArr),
-      BROWSER_CONFIG.proxyTimeout,
-      BROWSER_CONFIG.filterAbusiveProxies,
-      BROWSER_CONFIG.sortProxies
-    );
-  } else {
-    proxies =
-      getProxy(
-        proxiesArr
-      ); /** Returns Array of proxy objects Format: arr : obj: host: 0.0.0.0, port: 80 */
-  }
   if (proxies.length <= 0) {
     log("ERROR", `Browser ${browserId}: No valid proxies available.`);
   } else {
@@ -573,12 +554,41 @@ async function solveTurnstile(targetUrl, browserId, browsers) {
   }
 }
 
+async function setupProxy() {
+  /**
+   * Proxies
+   */
+  const proxiesArr = readFile(BROWSER_CONFIG.proxyFile);
+
+  /**
+   * TODO: Implement logic, so that proxies receive a member variable, that determines:
+   * * - Threat score / AbuseDB
+   * * - Speed (if possible)
+   *
+   * TODO: Implement logic, that lets the user sort the proxies based on abuseDB score / ms
+   */
+
+  let proxies = [];
+  if (BROWSER_CONFIG.filterProxies) {
+    proxies = await proxyTest(
+      getProxy(proxiesArr),
+      BROWSER_CONFIG.proxyTimeout,
+      BROWSER_CONFIG.filterAbusiveProxies,
+      BROWSER_CONFIG.sortProxies
+    );
+  } else {
+    proxies =
+      getProxy(
+        proxiesArr
+      ); /** Returns Array of proxy objects Format: arr : obj: host: 0.0.0.0, port: 80 */
+  }
+  return proxies;
+}
+
 async function startBrowsers(targetUrl, browserCount = 10) {
   log("FARM", `Starting ${browserCount} browsers...`);
 
-  /**
-   * TODO: Implement proxies logic here, so the proxies are handled, before browsers actually start.
-   */
+  const proxies = await setupProxy();
 
   const browserPromises = [];
   const browsers = [];
@@ -588,7 +598,7 @@ async function startBrowsers(targetUrl, browserCount = 10) {
     /**
      * !!! No await here, to keep concurrency of the browsers!
      */
-    const browserPromise = solveTurnstile(targetUrl, i, browsers);
+    const browserPromise = setupBrowser(targetUrl, i, browsers, proxies);
     browserPromises.push(browserPromise);
     if (i < browserCount) {
       await new Promise((r) => setTimeout(r, 3000));
