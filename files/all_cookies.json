@@ -1,10 +1,10 @@
 [
   {
     "name": "cf_clearance",
-    "value": "WmbwCM8425rdCEsfOlAnTsQko.kinWuX0.oIfN5KoOo-1765216793-1.2.1.1-CaXRW28_4JN_FDT7uRg7coKS1vqSqrDcNZY0LIFH9JeRsywKuI10uwXFRVBYrrAxu3oWAEcqY5yWG.SIG6.KI7i0CJ6._mdaqrCJf5h79pQq7LEIRHxuOV7FALfn_g0JXzoxnP4k_VSZ5JZylB.PkPJfWAHjqn4ht56oM0n8jlWsWJWbxQMYXV8WLcP1vAVk2HpZpQ1wgSUf.EDra.HM1DwjaMo2PoO6Mmh0oLnJEfw",
-    "domain": ".dopamine.clinic",
+    "value": "YwIhompbyXi11RYO1CtxbJ.4La1Oxe6oBelHFAHu.Fg-1765919694-1.2.1.1-aIXB7pqlLT93cwmAKB11fkB_aRrl2QulAHOoDABFHeRu00pn4Cfg_55A2z64DZEuK7GRoWiSYKr0JbwAFxZKZrrrsy7i80XKzX8kYNNhX7KZx5xIvZALVvng_1NmuAaEO49u_nXArdX0Y8pkhOEeOD59aZiQfUWfB_CCn47dvphu4cZQbU16vDeBxbbU02kP.CQT_uMlg9EyxIVtsweuL3BPInUuQ7cA4ju2XkVv2.A",
+    "domain": ".kanfetka.site",
     "path": "/",
-    "expires": 1796752793.034911,
+    "expires": 1797455694.121963,
     "size": 310,
     "httpOnly": true,
     "secure": true,
@@ -13,6 +13,6 @@
     "priority": "Medium",
     "sameParty": false,
     "sourceScheme": "Secure",
-    "partitionKey": "https://dopamine.clinic"
+    "partitionKey": "https://kanfetka.site"
   }
 ]

