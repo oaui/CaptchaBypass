@@ -30,7 +30,7 @@ export async function solveCloudflare(page, browserId, browserData, proxy) {
       if (frame.url().includes("challenges.cloudflare.com")) {
         try {
           await addHumanLikeBehaviorInFrame(frame, browserId);
-          await new Promise((r) => setTimeout(r, 2000));
+          await new Promise((r) => setTimeout(r, 500));
           await frame.click('input[type="checkbox"]');
           log(
             "SUCCESS",
@@ -45,7 +45,7 @@ export async function solveCloudflare(page, browserId, browserData, proxy) {
   log("INFO", `Browser ${browserId}: Waiting for JS Challenge to be Solved`);
   let solved = false;
   for (let i = 0; i < 30; i++) {
-    await new Promise((r) => setTimeout(r, 2000));
+    await new Promise((r) => setTimeout(r, 500));
     const stillChallenge = await page.evaluate(() => {
       const title = document.title.toLowerCase();
       return title.includes("just a moment") || title.includes("checking");
@@ -64,8 +64,7 @@ export async function solveCloudflare(page, browserId, browserData, proxy) {
   }
   if (!solved)
     log("WARN", `Browser ${browserId}: Auto-Bypass timeout. Click CheckBox`);
-  log("INFO", `Browser ${browserId}: Waiting for cookies to be set...`);
-  await new Promise((r) => setTimeout(r, 5000));
+
   log("INFO", `Browser ${browserId}: Retrieving cookies...`);
   let cookies = await page.cookies();
   let cfClearance = cookies.find((c) => c.name === "cf_clearance");

