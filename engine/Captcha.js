@@ -245,6 +245,10 @@ Optional Options:
   -b, --browsers <num>     Number of browsers (default: 5)
   -hl, --headless <true|false>  Run browsers in headless mode (default: false)
   -bmode, --browser-mode <normal|stealth|aggressive|continuous> Determine, which type of flood the Flooder instance will use
+        mode normal: Standard page evaluation with no delays, anti detection or stealth
+        mode stealth: WARNING: Consider that setting -fpp to 1 (=> 1 request per proxy) is recommended, to avoid multiple workers. Human movement, delays and stealth
+        mode aggressive: CPU intensive, high request flood
+        mode continuous: Runtime based flood, page evaluation
   -fp, --filter-proxies <true|false>  Filter non working proxies (default: false)
   -port, --targetPort <port>  Target port if not standard, only relevant for Flooder (default: 80/443)
   -pt, --proxy-timeout <ms>  Proxy connection timeout in milliseconds (default: 8000) Notice: Only set this, if --filter-proxies or -fp is set to true!

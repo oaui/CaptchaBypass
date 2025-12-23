@@ -34,7 +34,7 @@ export async function autoBypass(page, browserId, proxy, browserData) {
   } else {
     log(
       "INFO",
-      `Browser ${browserId}: AUTOBYPASS >> Detected captcha, default bypass process engaged.`
+      `Browser ${browserId}: AUTOBYPASS >> No captcha detected, AUTO SOLVER process engaged.`
     );
     const unknownCaptcha = await autoSolver(page, browserData, browserId);
     if (unknownCaptcha.success) {

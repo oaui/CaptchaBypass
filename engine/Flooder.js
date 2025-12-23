@@ -242,7 +242,7 @@ export class Flooder {
           "INFO",
           `Browser ${this.browserId}: Waiting ${Math.round(
             delay / 1000
-          )}s before next request (mimicking human behavior)`
+          )}s before next request to avoid ratelimit`
         );
         await new Promise((r) => setTimeout(r, delay));
       }

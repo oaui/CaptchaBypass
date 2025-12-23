@@ -8,7 +8,7 @@ import {
 } from "../../util/Util.js";
 
 export async function autoSolver(page, browserData, browserId) {
-  log("INFO", `Browser ${browserId} requested auto solver.`);
+  log("INFO", `Browser ${browserId} requested AUTO SOLVER.`);
 
   const frames = page.frames();
 
@@ -18,9 +18,6 @@ export async function autoSolver(page, browserData, browserId) {
     "cloudflare",
     "ddos-guard",
     "captcha",
-    "challange",
-    "verification",
-    "checkbox",
   ];
 
   for (const frame of frames) {
@@ -39,14 +36,22 @@ export async function autoSolver(page, browserData, browserId) {
           const idLower = attrs.id.toLowerCase();
           const classLower = attrs.className.toLowerCase();
 
-          const matches = captchaElements.some(
-            (keyword) =>
-              idLower.includes(keyword) || classLower.includes(keyword)
-          );
+          const matches = captchaElements.some(function (keyword) {
+            if (idLower.includes(keyword) || classLower.includes(keyword)) {
+              return {
+                success: true,
+                keyword: keyword,
+                class: classLower,
+                id: idLower,
+              };
+            } else {
+              return { success: false };
+            }
+          });
 
-          await handleElement(page, element);
+          await handleElement(page, element, matches);
 
-          if (!matches) continue;
+          if (!matches.success) continue;
 
           await element.hover({ force: true, trial: Math.random() < 0.3 });
           await new Promise((resolve) =>
@@ -60,7 +65,7 @@ export async function autoSolver(page, browserData, browserId) {
 
   return { success: true, browserData };
 }
-async function handleElement(page, element) {
+async function handleElement(page, element, matches) {
   const textToCheck = [
     "login",
     "sign in",
@@ -70,6 +75,13 @@ async function handleElement(page, element) {
     "my account",
     "account",
   ];
+
+  if (matches.success) {
+    log(
+      "INFO",
+      `AUTO SOLVER found invisible challenge: ${matches.keyword.toUpperCase()}`
+    );
+  }
 
   try {
     const innerText = await element.evaluate(
