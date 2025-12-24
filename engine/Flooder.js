@@ -257,13 +257,13 @@ export class Flooder {
 
     return { success: true, stats, browserData: this.browserData };
   }
-
   async startAggressive(page) {
     log(
       "FLOODER",
       `Browser ${this.browserId} starting AGGRESSIVE flood with ${this.browserConfig.rps} concurrent requests`
     );
 
+    // Inject and execute all requests at once
     const results = await page.evaluate(async (rps) => {
       const requests = [];
       for (let i = 0; i < rps; i++) {

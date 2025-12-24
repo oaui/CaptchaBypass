@@ -247,7 +247,7 @@ Optional Options:
   -bmode, --browser-mode <normal|stealth|aggressive|continuous> Determine, which type of flood the Flooder instance will use
         mode normal: Standard page evaluation with no delays, anti detection or stealth
         mode stealth: WARNING: Consider that setting -fpp to 1 (=> 1 request per proxy) is recommended, to avoid multiple workers. Human movement, delays and stealth
-        mode aggressive: CPU intensive, high request flood
+        mode aggressive: CPU intensive, high request flood / A.K.A Just send all requests at once
         mode continuous: Runtime based flood, page evaluation
   -fp, --filter-proxies <true|false>  Filter non working proxies (default: false)
   -port, --targetPort <port>  Target port if not standard, only relevant for Flooder (default: 80/443)
