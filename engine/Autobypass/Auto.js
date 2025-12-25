@@ -4,7 +4,6 @@ import {
   addHumanLikeBehavior,
   addHumanLikeBehaviorInFrame,
   suspiciousClickableSelector,
-  createCookieObject,
 } from "../../util/Util.js";
 
 export async function autoSolver(page, browserData, browserId) {

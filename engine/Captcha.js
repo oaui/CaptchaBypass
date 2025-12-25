@@ -503,6 +503,7 @@ async function setupBrowser(targetUrl, browserId, browsers, proxies) {
     const result = await connect(connectOptions);
     browser = result.browser;
     page = result.page;
+
     page = await browser.newPage();
 
     browsers[browserId - 1] = browser;
